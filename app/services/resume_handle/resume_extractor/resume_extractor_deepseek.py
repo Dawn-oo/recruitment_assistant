@@ -23,7 +23,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
         self.model = model
 
         self.client = AsyncOpenAI(
-            api_key=DEEPSEEK_API_KEY,
+            api_key= api_key or DEEPSEEK_API_KEY,
             base_url="https://api.deepseek.com",
         )
 
@@ -72,10 +72,8 @@ class DeepSeekResumeExtractor(ResumeExtractor):
                 f"DeepSeek API 调用失败: {exc}"
             ) from exc
 
-        content = self.normalize_json_output(response.output_text)
         print("status:", response.status)
         print("error:", response.error)
-        print("content:", content)
 
         if response.status == "failed":
             raise ResumeExtractionError(
@@ -88,6 +86,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
             )
 
         content = response.output_text
+        content = self.normalize_json_output(content)
 
         if not content or not content.strip():
             raise ResumeExtractionError(
@@ -112,7 +111,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
 
         return resume
 
-    def normalize_json_output(content: str) -> str:
+    def normalize_json_output(self, content: str) -> str:
         content = content.strip()
 
         if content.startswith("```json"):
@@ -146,5 +145,17 @@ class DeepSeekResumeExtractor(ResumeExtractor):
     7. 只输出符合指定 Schema 的 JSON 对象。
     8. 不要输出 Markdown 代码块。
     9. 不要在 JSON 前后添加解释文字。
+    """
+
+    @staticmethod
+    def _build_user_prompt(markdown: str) -> str:
+        return f"""
+    下面是一份经过文档解析得到的 Markdown 简历。
+
+    请严格根据原文进行结构化信息抽取。
+
+    <resume_markdown>
+    {markdown}
+    </resume_markdown>
     """
 

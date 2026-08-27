@@ -19,6 +19,7 @@ class MinerUError(Exception):
 
 
 class MinerUParser(DocumentParser):
+
     BASE_URL = "https://mineru.net/api/v4"
 
     def __init__(
