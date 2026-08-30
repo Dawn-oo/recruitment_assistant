@@ -23,7 +23,6 @@ class SourceEvidenceModel(BaseModel):
         description="该信息对应的简历原始文本，不允许改写"
     )
 
-
 # ============================================================
 # 一、基础信息
 # ============================================================
@@ -74,7 +73,6 @@ class BasicInfoModel(BaseModel):
         default_factory=list,
         description="其他明确出现的个人主页或作品链接"
     )
-
 
 # ============================================================
 # 二、教育背景
@@ -135,11 +133,9 @@ class EducationBackgroundModel(BaseModel):
         description="教育经历，按照简历中的顺序保存"
     )
 
-
 # ============================================================
 # 三、知识技能与经验
 # ============================================================
-
 
 # ------------------------------------------------------------
 # 技能
@@ -160,7 +156,6 @@ class SkillModel(BaseModel):
         default_factory=list,
         description="技能对应的原始文本证据"
     )
-
 
 # ------------------------------------------------------------
 # 工作经历
@@ -213,7 +208,6 @@ class WorkExperienceModel(BaseModel):
         description="该工作经历对应的原始文本证据"
     )
 
-
 # ------------------------------------------------------------
 # 项目经历
 # ------------------------------------------------------------
@@ -265,7 +259,6 @@ class ProjectExperienceModel(BaseModel):
         description="该项目经历对应的原始文本证据"
     )
 
-
 # ------------------------------------------------------------
 # 知识技能与经验总结构
 # ------------------------------------------------------------
@@ -292,7 +285,6 @@ class KnowledgeAndExperienceModel(BaseModel):
         description="简历中明确列出的项目经历，按照简历中的顺序保存，包括工作、学校、科研、个人等项目，按照简历顺序保存"
     )
 
-
 # ============================================================
 # 四、其他信息
 # ============================================================
@@ -317,7 +309,6 @@ class CertificateModel(BaseModel):
         default_factory=list
     )
 
-
 class AwardModel(BaseModel):
 
     model_config = ConfigDict(
@@ -338,7 +329,6 @@ class AwardModel(BaseModel):
         default_factory=list
     )
 
-
 class LanguageModel(BaseModel):
 
     model_config = ConfigDict(
@@ -358,7 +348,6 @@ class LanguageModel(BaseModel):
     evidence: list[SourceEvidenceModel] = Field(
         default_factory=list
     )
-
 
 class OtherInfoModel(BaseModel):
 
@@ -396,7 +385,6 @@ class OtherInfoModel(BaseModel):
         default_factory=list,
         description="无法归入以上字段但可能与岗位相关的原始信息"
     )
-
 
 # ============================================================
 # Resume总Schema

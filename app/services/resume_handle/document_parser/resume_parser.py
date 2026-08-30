@@ -4,14 +4,21 @@ import json
 import os
 import time
 import zipfile
+import requests
+import logging
 from pathlib import Path
 from typing import Any
-from app.services.resume_handle.document_parser.base import DocumentParseResult, DocumentParser
-import requests
 from dotenv import load_dotenv
 
+from .base import DocumentParseResult, DocumentParser
+from app.tools.hash_fun import calculate_file_hash
 
-load_dotenv()
+
+_ = load_dotenv()
+logger = logging.getLogger(__name__)
+
+path = Path(__file__).resolve().parents[0]
+CACHE_DIR = path / "resume_parser_cache"
 
 
 class MinerUError(Exception):
@@ -28,7 +35,14 @@ class MinerUParser(DocumentParser):
         model_version: str = "vlm",
         poll_interval: int = 3,
         timeout: int = 300,
+        cache_dir: str | Path = CACHE_DIR,
     ):
+        self.cache_dir = Path(cache_dir)
+
+        self.cache_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
         self.token = token or os.getenv("MINERU_API_TOKEN")
 
         if not self.token:
@@ -212,7 +226,7 @@ class MinerUParser(DocumentParser):
                         f"{extracted_pages}/{total_pages} 页"
                     )
                 else:
-                    print("document_parser 正在解析...")
+                    print("文件正在解析...")
 
             elif state == "pending":
                 print("document_parser 任务排队中...")
@@ -349,14 +363,14 @@ class MinerUParser(DocumentParser):
         ) as file:
             return json.load(file)
 
-    def parse(
-        self,
-        file_path: str | Path,
-        output_dir: str | Path = "./mineru_output",
-        *,
-        data_id: str | None = None,
-        is_ocr: bool = False,
-    ) -> dict[str, Any]:
+    def _parse_with_mineru(
+            self,
+            file_path: Path,
+            output_dir: str | Path = None,
+            *,
+            data_id: str | None = None,
+            is_ocr: bool = False,
+    ) -> DocumentParseResult:
         """
         完整流程：
 
@@ -368,11 +382,13 @@ class MinerUParser(DocumentParser):
         -> 解压
         -> 返回 Markdown / content_list
         """
-
+        # 先计算原始文件的哈希值，作为结果zip的文件名
         path = Path(file_path)
-        output_dir = Path(output_dir)
+        file_hash_key = calculate_file_hash(path)
+        logger.debug(f"文件哈希值计算完成: {file_hash_key}")
 
-        print(f"开始解析: {path.name}")
+        if output_dir is None:
+            output_dir = self.cache_dir
 
         # 1. 获取上传地址
         batch_id, upload_url = self.apply_upload_url(
@@ -381,27 +397,29 @@ class MinerUParser(DocumentParser):
             is_ocr=is_ocr,
         )
 
-        print(f"batch_id: {batch_id}")
+        logger.info(f"文件上传地址获取成功, 文件id为，batch_id: {batch_id}")
 
         # 2. 上传 PDF
+
         self.upload_file(
             path,
             upload_url,
         )
 
-        print("文件上传成功")
+        logger.info(f"文件{path.name}上传MinerU平台成功，等待解析完成...,batch_id={batch_id}")
 
-        # 3. 等待解析完成
+    # 3. 等待解析完成
         zip_url = self.wait_until_done(
-            batch_id
+        batch_id
         )
 
-        print("document_parser 解析完成")
+        logger.info(
+            f"MinerU 解析完成{path.name}文件完成，batch_id={batch_id}")
 
         # 每个任务单独保存
-        task_dir = output_dir / batch_id
+        task_dir = Path(output_dir) / file_hash_key
 
-        zip_path = task_dir / "result.zip"
+        zip_path = task_dir / f"{file_hash_key}.zip"
         extract_dir = task_dir / "result"
 
         # 4. 下载 ZIP
@@ -431,4 +449,60 @@ class MinerUParser(DocumentParser):
             content_list=content_list,
             parser_task_id=batch_id,
             raw_result_path=str(extract_dir),
+            document_hash=file_hash_key
         )
+
+
+    def parse(
+        self,
+        file_path: str | Path,
+        cache_dir: str | Path = None,
+        *,
+        data_id: str | None = None,
+        is_ocr: bool = False,
+    ) -> DocumentParseResult:
+
+        if cache_dir is None:
+            cache_dir = self.cache_dir
+
+        # 传入的是原始文件的路径
+        path = Path(file_path)
+        file_hash = calculate_file_hash(
+            path
+        )
+        cache_path = Path(cache_dir) / file_hash
+        zip_path = cache_path / f"{file_hash}.zip"
+        result_dir = cache_path / "result"
+
+        if zip_path.exists() and zip_path.is_file():
+
+            logger.info(
+                f"发现已有解析结果 {path.name}")
+            if not result_dir.exists():
+                self.extract_zip(zip_path, result_dir)
+
+            markdown = self.find_markdown(result_dir)
+            content_list = self.find_content_list(result_dir)
+
+            return DocumentParseResult(
+                markdown=markdown,
+                content_list=content_list,
+                document_hash=file_hash,
+                raw_result_path=str(cache_path),
+                from_cache=True
+            )
+
+        else:
+            print("未发现已有解析结果")
+            print(f"开始解析: {path.name}")
+
+            try:
+                result = self._parse_with_mineru(
+                    file_path, data_id=data_id,is_ocr=is_ocr,
+                )
+            except Exception as e:
+                logger.exception(
+                    f"{path.name} 文档解析失败 {e}")
+                raise
+            return result
+

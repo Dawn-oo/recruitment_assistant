@@ -6,12 +6,12 @@ parser = MinerUParser(
 )
 
 result = parser.parse(
-    file_path=r"/app/services/resume_handle/人力资源培训专员简历_张晓婷.pdf",
-    output_dir="data/mineru_results",
+    file_path=r"E:\Project\assistant_for_recruitment\app\services\resume_handle\人力资源培训专员简历_张晓婷.pdf"
 )
+
 
 print("\n====================")
 print("Markdown:")
 print("====================")
 
-print(result["markdown"])
+print(result.markdown)

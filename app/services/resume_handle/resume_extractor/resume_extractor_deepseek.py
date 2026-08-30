@@ -1,17 +1,25 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import logging
+import time
+
 
 from openai import AsyncOpenAI
 from pydantic import ValidationError
+from pathlib import Path
 
 from app.core.config import DEEPSEEK_API_KEY
-from app.services.resume_handle.resume_extractor.Resume_schema import ResumeModel
-from app.services.resume_handle.resume_extractor.base import ResumeExtractor
+from .base import ResumeExtractor, ResumeExtracSchema
+
+
+logger = logging.getLogger(__name__)
+path = Path(__file__).resolve().parent
+CACHE_PATH = path / "resume_shcema_json_cache"
 
 class ResumeExtractionError(Exception):
     """简历结构化抽取失败。"""
-
 
 class DeepSeekResumeExtractor(ResumeExtractor):
 
@@ -19,6 +27,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
         self,
         api_key: str | None = None,
         model: str = "deepseek-v4-flash",
+        cache_dir: str = CACHE_PATH,
     ):
         self.model = model
 
@@ -27,21 +36,18 @@ class DeepSeekResumeExtractor(ResumeExtractor):
             base_url="https://api.deepseek.com",
         )
 
-    async def extract(
-        self,
-        markdown: str,
-    ) -> ResumeModel:
-        """
-        将 document_parser 解析得到的 Markdown
-        抽取为 ResumeSchema。
-        """
+        self.cache_dir = Path(cache_dir)
 
-        if not markdown.strip():
-            raise ResumeExtractionError(
-                "Markdown 内容为空"
-            )
+        self.cache_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+    async def _extract_with_llm(self, markdown: str) -> ResumeExtracSchema:
 
         try:
+            start = time.perf_counter()
+
             response = await self.client.responses.create(
                 model=self.model,
 
@@ -58,7 +64,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
                         "type": "json_schema",
                         "name": "resume",
                         "schema": (
-                            ResumeModel
+                            ResumeExtracSchema
                             .model_json_schema()
                         ),
                     }
@@ -67,13 +73,23 @@ class DeepSeekResumeExtractor(ResumeExtractor):
                 max_output_tokens=16000,
             )
 
+            elapsed_ms = (
+                                 time.perf_counter() - start
+                         ) * 1000
+
+            logger.info(
+                "LLM请求成功 model=%s latency_ms=%.0f",
+                self.model,
+                elapsed_ms,
+            )
+
         except Exception as exc:
             raise ResumeExtractionError(
                 f"DeepSeek API 调用失败: {exc}"
             ) from exc
 
-        print("status:", response.status)
-        print("error:", response.error)
+        content = response.output_text
+        content = self.normalize_json_output(content)
 
         if response.status == "failed":
             raise ResumeExtractionError(
@@ -84,9 +100,6 @@ class DeepSeekResumeExtractor(ResumeExtractor):
             raise ResumeExtractionError(
                 f"DeepSeek 输出不完整: {response.incomplete_details}"
             )
-
-        content = response.output_text
-        content = self.normalize_json_output(content)
 
         if not content or not content.strip():
             raise ResumeExtractionError(
@@ -100,7 +113,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
             raise ResumeExtractionError("DeepSeek 返回结果不是合法 JSON") from exc
 
         try:
-            resume = ResumeModel.model_validate(
+            resume = ResumeExtracSchema.model_validate(
                 data
             )
 
@@ -111,7 +124,34 @@ class DeepSeekResumeExtractor(ResumeExtractor):
 
         return resume
 
-    def normalize_json_output(self, content: str) -> str:
+    @staticmethod
+    def _load_cache(
+            cache_path: Path,
+    ) -> ResumeExtracSchema:
+
+        content = cache_path.read_text(
+            encoding="utf-8"
+        )
+
+        return ResumeExtracSchema.model_validate_json(
+            content
+        )
+
+    @staticmethod
+    def _save_cache(
+            cache_path: Path,
+            resume: ResumeExtracSchema,
+    ) -> None:
+
+        cache_path.write_text(
+            resume.model_dump_json(
+                indent=2
+            ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def normalize_json_output(content: str) -> str:
         content = content.strip()
 
         if content.startswith("```json"):
@@ -159,3 +199,39 @@ class DeepSeekResumeExtractor(ResumeExtractor):
     </resume_markdown>
     """
 
+    async def extract(
+        self,
+        markdown: str,
+        *,
+        force_refresh: bool = False
+    ) -> ResumeExtracSchema:
+        """
+        将 document_parser 解析得到的 Markdown
+        抽取为 ResumeSchema。
+        """
+
+        if not markdown.strip():
+            raise ResumeExtractionError("Markdown 内容为空")
+
+        markdown_hash = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
+
+        cache_path = (
+                self.cache_dir
+                / f"{markdown_hash}.json"
+        )
+
+        if (
+                not force_refresh
+                and cache_path.exists()
+        ):
+            try:
+                resume = self._load_cache(cache_path)
+                logger.info("缓存文件加载完成")
+                return resume
+            except ValidationError as e:
+                raise ResumeExtractionError(f"缓存文件 {cache_path} 格式校验失败: {e}")
+
+        resume = await self._extract_with_llm(markdown)
+
+        self._save_cache(cache_path,resume)
+        return resume

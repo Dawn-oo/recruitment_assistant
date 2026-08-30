@@ -1,7 +1,13 @@
 from abc import ABC, abstractmethod
 
-from app.services.resume_handle.resume_extractor.Resume_schema import ResumeModel
+from .resume_schema import ResumeModel
 
+
+class ResumeExtracSchema(ResumeModel):
+    """
+    简历结构化LLM抽取的 JSON Schema。
+    """
+    pass
 
 class ResumeExtractor(ABC):
 
@@ -9,8 +15,9 @@ class ResumeExtractor(ABC):
     async def extract(
         self,
         markdown: str,
-    ) -> ResumeModel:
+    ) -> ResumeExtracSchema:
         """
-        Markdown简历 -> ResumeSchema
+        Markdown简历 -> ResumeExtracSchema
         """
         pass
+
