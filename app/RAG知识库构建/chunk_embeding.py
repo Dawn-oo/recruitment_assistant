@@ -27,20 +27,6 @@ DEVICE = os.getenv("BGE_DEVICE")
 BATCH_SIZE = int(os.getenv("EMBED_BATCH_SIZE", "8"))
 MAX_LENGTH = int(os.getenv("BGE_MAX_LENGTH", "1024"))
 
-# 日志
-console_handler = logging.StreamHandler()
-file_handler = logging.FileHandler("chunk_embedding.log", encoding="utf-8")
-Formater = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
-file_handler.setFormatter(Formater)
-console_handler.setFormatter(Formater)
-
-
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[console_handler, file_handler]
-)
-
-logger = logging.getLogger(__name__)
 
 # 远程连接
 
@@ -133,13 +119,6 @@ def load_embedding_model() -> BGEM3FlagModel:
 
     # GPU 才启用 fp16
     use_fp16 = device.startswith("cuda")
-
-    logger.info(
-        "加载 BGE-M3: path=%s, device=%s, fp16=%s",
-        MODEL_PATH,
-        device,
-        use_fp16,
-    )
 
     model = BGEM3FlagModel(
         MODEL_PATH,
@@ -354,4 +333,5 @@ def run_embedding_pipeline():
 
 
 if __name__ == "__main__":
-    run_embedding_pipeline()
+    pass
+

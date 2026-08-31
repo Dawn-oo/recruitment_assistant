@@ -6,9 +6,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.services.resume_handle.resume_extractor.base import (
-    ResumeExtracSchema,
-    ResumeExtractor)
+from app.services.resume_handle.resume_extractor.base import ResumeExtractor
+from app.services.resume_handle.resume_extractor.resume_schema import ResumeModel
 
 from app.services.resume_handle.document_parser.base import (
     DocumentParser,
@@ -22,7 +21,7 @@ class ResumeProcessingResult:
     一次完整简历处理的最终结果。
     """
 
-    resume: ResumeExtracSchema
+    resume: ResumeModel
 
     document: DocumentParseResult
 

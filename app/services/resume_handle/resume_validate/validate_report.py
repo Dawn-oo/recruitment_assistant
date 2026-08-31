@@ -72,13 +72,7 @@ class ResumeValidationReport(BaseModel):
 
 class ResumeValidator:
 
-    def validate(
-        self,
-        raw_data: dict,
-    ) -> tuple[
-        ResumeModel | None,
-        ResumeValidationReport,
-    ]:
+    def validate(self,raw_data: dict) -> tuple[ResumeModel | None,ResumeValidationReport]:
 
         issues: list[ResumeValidationIssue] = []
 

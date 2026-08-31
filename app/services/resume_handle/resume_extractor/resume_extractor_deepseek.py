@@ -11,8 +11,8 @@ from pydantic import ValidationError
 from pathlib import Path
 
 from app.core.config import DEEPSEEK_API_KEY
-from .base import ResumeExtractor, ResumeExtracSchema
-
+from .base import ResumeExtractor
+from .resume_schema import ResumeModel
 
 logger = logging.getLogger(__name__)
 path = Path(__file__).resolve().parent
@@ -43,7 +43,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
             exist_ok=True,
         )
 
-    async def _extract_with_llm(self, markdown: str) -> ResumeExtracSchema:
+    async def _extract_with_llm(self, markdown: str) -> ResumeModel:
 
         try:
             start = time.perf_counter()
@@ -64,7 +64,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
                         "type": "json_schema",
                         "name": "resume",
                         "schema": (
-                            ResumeExtracSchema
+                            ResumeModel
                             .model_json_schema()
                         ),
                     }
@@ -113,7 +113,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
             raise ResumeExtractionError("DeepSeek 返回结果不是合法 JSON") from exc
 
         try:
-            resume = ResumeExtracSchema.model_validate(
+            resume = ResumeModel.model_validate(
                 data
             )
 
@@ -127,20 +127,20 @@ class DeepSeekResumeExtractor(ResumeExtractor):
     @staticmethod
     def _load_cache(
             cache_path: Path,
-    ) -> ResumeExtracSchema:
+    ) -> ResumeModel:
 
         content = cache_path.read_text(
             encoding="utf-8"
         )
 
-        return ResumeExtracSchema.model_validate_json(
+        return ResumeModel.model_validate_json(
             content
         )
 
     @staticmethod
     def _save_cache(
             cache_path: Path,
-            resume: ResumeExtracSchema,
+            resume: ResumeModel,
     ) -> None:
 
         cache_path.write_text(
@@ -204,7 +204,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
         markdown: str,
         *,
         force_refresh: bool = False
-    ) -> ResumeExtracSchema:
+    ) -> ResumeModel:
         """
         将 document_parser 解析得到的 Markdown
         抽取为 ResumeSchema。

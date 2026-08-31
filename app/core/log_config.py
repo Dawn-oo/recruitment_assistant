@@ -7,7 +7,7 @@ from logging.handlers import TimedRotatingFileHandler
 # 主函数中调用
 
 def setup_logging(
-    log_level: int = logging.INFO,
+    log_level: int = logging.DEBUG,
     log_dir: str = "./logs"
 ) -> None:
     """
@@ -54,7 +54,7 @@ def setup_logging(
     # 5. Console Handler
     # ==========================
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(log_level=logging.DEBUG)
+    console_handler.setLevel(log_level)
     console_handler.setFormatter(formatter)
 
     console_handler._app_handler = True

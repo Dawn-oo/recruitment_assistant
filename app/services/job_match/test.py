@@ -1,79 +1,68 @@
-from job_intent_norm import JobIntentNormalizer
+import asyncio
+import logging
+
+from app.services.resume_handle.resume_pipline import ResumeProcessingService
+from app.services.resume_handle.document_parser.resume_parser import MinerUParser
+from app.services.resume_handle.resume_extractor.resume_extractor_deepseek import DeepSeekResumeExtractor
+from app.services.resume_handle.resume_validate.validate_report import ResumeValidator
+from app.core.log_config import setup_logging
+from app.tools.database_con import PostgresSSHConfig, PostgresSSHPool
+from app.services.job_match.vector_match.resume_query_builder import ResumeQueryBuilder
+from app.services.job_match.vector_match.vector_retriever import VectorRetriever
+from app.services.job_match.jd_repository import JDRepository
+from app.tools.embeding_assist import BgeM3EmbeddingProvider
 
 
+logger = logging.getLogger(__name__)
 
-def print_result(case_name: str, result) -> None:
-    print("=" * 60)
-    print(f"测试场景: {case_name}")
-    print(f"原始岗位: {result.raw_target_job_title}")
-    print(f"是否多岗位: {result.is_multi_intent}")
+async def main():
 
-    for index, intent in enumerate(result.intents, start=1):
-        print(f"\n岗位 {index}:")
-        print(f"  raw_title        = {intent.raw_title}")
-        print(f"  normalized_title = {intent.normalized_title}")
-        print(f"  resolution_type  = {intent.resolution_type.value}")
+    setup_logging()
 
-    print()
+    # 文件解析器，主要负责解析简历文件，提取文本内容，将pdf转为markdown
+    document_parser = MinerUParser()
+
+    # 简历提取器，主要负责从markdown中提取简历信息
+    resume_extractor = DeepSeekResumeExtractor()
+
+    # 简历验证器，主要负责验证简历信息是否符合要求
+    # resume_validator = ResumeValidator()
+
+    # 简历处理服务，主要负责处理简历文件，包括解析、提取、验证等
+    service = ResumeProcessingService(
+        document_parser=document_parser,
+        resume_extractor=resume_extractor,
+    )
+
+    result = await service.process(
+        r"E:\Project\assistant_for_recruitment\app\services\resume_handle\人力资源培训专员简历_张晓婷.pdf"
+    )
+    print(result)
+
+    # 查询构建器，主要负责根据简历信息构建查询语句
+    query_builder = ResumeQueryBuilder()
+    query_result = query_builder.build(result.resume)
+    print(query_result)
+
+    # 嵌入模型，主要负责将简历信息转换为向量表示
+    embedder = BgeM3EmbeddingProvider()
+
+    config = PostgresSSHConfig.from_env()
+    with PostgresSSHPool(config) as db:
+        # 向量检索器，主要负责根据查询语句和简历向量表示，从数据库中检索最相关的岗位描述
+        retriever = VectorRetriever(repository=JDRepository(db=db),embedder=embedder)
 
 
-def main() -> None:
-    normalizer = JobIntentNormalizer()
+        retrieval_result = retriever.retrieve(query_result.query_units)
+        print(retrieval_result)
 
-    test_cases = [
-        # 1. 标准岗位
-        (
-            "标准岗位精确匹配",
-            "项目经理",
-        ),
 
-        # 2. Alias
-        (
-            "Alias匹配",
-            "项目实施经理",
-        ),
+    # resume, report = resume_validator.validate(result)
+    # print(resume)
+    # print(report)
+    # print()
 
-        # 3. 多岗位
-        (
-            "多个岗位",
-            "软件开发工程师、项目实施经理",
-        ),
-
-        # 4. 使用 / 的多岗位
-        (
-            "斜杠分隔多个岗位",
-            "实施工程师/项目经理",
-        ),
-
-        # 5. 不应该盲目拆开的岗位
-        (
-            "无法确认的复合岗位",
-            "Java/C++开发工程师",
-        ),
-
-        # 6. 完全未知岗位
-        (
-            "未知岗位",
-            "AI Agent开发工程师",
-        ),
-
-        # 7. 空值
-        (
-            "没有填写求职岗位",
-            None,
-        ),
-    ]
-
-    for case_name, target_job_title in test_cases:
-        result = normalizer.normalize(
-            target_job_title
-        )
-
-        print_result(
-            case_name,
-            result,
-        )
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
