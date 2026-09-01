@@ -114,11 +114,23 @@ async def main():
         # 1、精确匹配岗位意图
         retrieval_result1 = exact_job_matcher.match(job_intent_result)
 
+        # print(retrieval_result1.intent_results[0].matched_jds[0].model_dump_json(indent=2, ensure_ascii=False))
         # 2、向量检索岗位描述
         retrieval_result2 = retriever.retrieve(query_result.query_units)
         print("检索完成")
         print(f"检索结果为：{len(retrieval_result2.query_results)}条符合条件的岗位描述")
-        print(retrieval_result1.intent_results[0].matched_jds[0].model_dump_json(indent=2, ensure_ascii=False))
+        print(retrieval_result2.query_results[0].model_dump_json(indent=2, ensure_ascii=False))
+
+        with open("test.json","w",encoding="utf-8") as f:
+            f.write("{\"精确匹配岗位意图结果\":\n")
+            f.write(retrieval_result1.model_dump_json(indent=2, ensure_ascii=False) + "\n")
+            f.write(",\n")
+
+            f.write("\n")
+
+            f.write("\"向量检索岗位描述结果\":\n")
+            f.write(retrieval_result2.model_dump_json(indent=2, ensure_ascii=False) + "\n")
+            f.write("}\n")
 
 
 if __name__ == "__main__":
