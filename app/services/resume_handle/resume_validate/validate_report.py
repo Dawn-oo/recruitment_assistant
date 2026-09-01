@@ -34,10 +34,7 @@ class ResumeQualityStatus(str, Enum):
 
 class ResumeValidationIssue(BaseModel):
 
-    model_config = ConfigDict(
-        strict=True,
-        extra="ignore",
-    )
+    model_config = ConfigDict(strict=True,extra="ignore")
 
     field_path: str
 
@@ -54,10 +51,7 @@ class ResumeValidationIssue(BaseModel):
 
 class ResumeValidationReport(BaseModel):
 
-    model_config = ConfigDict(
-        strict=True,
-        extra="ignore",
-    )
+    model_config = ConfigDict(strict=True,extra="ignore")
 
     status: ResumeQualityStatus
 
@@ -65,9 +59,7 @@ class ResumeValidationReport(BaseModel):
 
     can_analyze: bool
 
-    issues: list[ResumeValidationIssue] = Field(
-        default_factory=list
-    )
+    issues: list[ResumeValidationIssue] = Field(default_factory=list)
 
 
 class ResumeValidator:
@@ -81,9 +73,7 @@ class ResumeValidator:
         # =====================================================
 
         try:
-            resume = ResumeModel.model_validate(
-                raw_data
-            )
+            resume = ResumeModel.model_validate(raw_data)
 
         except ValidationError as exc:
 
@@ -102,38 +92,23 @@ class ResumeValidator:
         # =====================================================
 
         # 技能经验内容校验
-        issues.extend(
-            self._validate_resume_content(resume)
-        )
+        issues.extend(self._validate_resume_content(resume))
 
-        #
-        issues.extend(
-            self._validate_basic_info(resume)
-        )
+        issues.extend(self._validate_basic_info(resume))
 
-        issues.extend(
-            self._validate_education(resume)
-        )
+        issues.extend(self._validate_education(resume))
 
-        issues.extend(
-            self._validate_work_experience(resume)
-        )
+        issues.extend(self._validate_work_experience(resume))
 
-        issues.extend(
-            self._validate_projects(resume)
-        )
+        issues.extend(self._validate_projects(resume))
 
-        issues.extend(
-            self._validate_evidence(resume)
-        )
+        issues.extend(self._validate_evidence(resume))
 
         # =====================================================
         # 3. 计算 Review 状态
         # =====================================================
 
-        status, can_analyze = (
-            self._resolve_status(issues)
-        )
+        status, can_analyze = self._resolve_status(issues)
 
 
         return (
@@ -150,11 +125,8 @@ class ResumeValidator:
     # Schema Error
     # =========================================================
 
-   # 把 Pydantic 错误转换成前端可理解的格式
-    def _convert_schema_errors(
-        self,
-        exc: ValidationError,
-    ) -> list[ResumeValidationIssue]:
+   # 把 Pydantic错误转换成前端可理解的格式
+    def _convert_schema_errors(self,exc: ValidationError) -> list[ResumeValidationIssue]:
 
         issues = []
 
@@ -162,9 +134,7 @@ class ResumeValidator:
 
             issues.append(
                 ResumeValidationIssue(
-                    field_path=self._loc_to_path(
-                        error["loc"]
-                    ),
+                    field_path=self._loc_to_path(error["loc"]),
                     issue_type=IssueType.SCHEMA_ERROR,
                     severity=IssueSeverity.ERROR,
                     message=error["msg"],
@@ -198,16 +168,11 @@ class ResumeValidator:
     # Resume整体质量
     # =========================================================
 
-    def _validate_resume_content(
-        self,
-        resume: ResumeModel,
-    ) -> list[ResumeValidationIssue]:
+    def _validate_resume_content(self,resume: ResumeModel) -> list[ResumeValidationIssue]:
 
         issues = []
 
-        knowledge = (
-            resume.knowledge_and_experience
-        )
+        knowledge = resume.knowledge_and_experience
 
         has_content = any([
             resume.education_background.educations,
@@ -236,10 +201,7 @@ class ResumeValidator:
     # BasicInfo
     # =========================================================
 
-    def _validate_basic_info(
-        self,
-        resume: ResumeModel,
-    ) -> list[ResumeValidationIssue]:
+    def _validate_basic_info(self,resume: ResumeModel) -> list[ResumeValidationIssue]:
 
         issues = []
 
@@ -284,10 +246,7 @@ class ResumeValidator:
     # Education
     # =========================================================
 
-    def _validate_education(
-        self,
-        resume: ResumeModel,
-    ) -> list[ResumeValidationIssue]:
+    def _validate_education(self,resume: ResumeModel) -> list[ResumeValidationIssue]:
 
         issues = []
 
@@ -353,10 +312,7 @@ class ResumeValidator:
     # Work
     # =========================================================
 
-    def _validate_work_experience(
-        self,
-        resume: ResumeModel,
-    ) -> list[ResumeValidationIssue]:
+    def _validate_work_experience(self,resume: ResumeModel) -> list[ResumeValidationIssue]:
 
         issues = []
 
@@ -417,10 +373,7 @@ class ResumeValidator:
     # Project
     # =========================================================
 
-    def _validate_projects(
-        self,
-        resume: ResumeModel,
-    ) -> list[ResumeValidationIssue]:
+    def _validate_projects(self,resume: ResumeModel) -> list[ResumeValidationIssue]:
 
         issues = []
 
@@ -467,10 +420,7 @@ class ResumeValidator:
     # Evidence
     # =========================================================
 
-    def _validate_evidence(
-        self,
-        resume: ResumeModel,
-    ) -> list[ResumeValidationIssue]:
+    def _validate_evidence(self,resume: ResumeModel) -> list[ResumeValidationIssue]:
 
         issues = []
 
@@ -504,26 +454,14 @@ class ResumeValidator:
     # =========================================================
 
     @staticmethod
-    def _resolve_status(
-        issues: list[ResumeValidationIssue],
-    ) -> tuple[ResumeQualityStatus, bool]:
+    def _resolve_status(issues: list[ResumeValidationIssue],) -> tuple[ResumeQualityStatus, bool]:
 
-        if any(
-            issue.blocks_analysis
-            for issue in issues
-        ):
-            return (
-                ResumeQualityStatus.REVIEW_REQUIRED,
-                False,
-            )
+        if any(issue.blocks_analysis for issue in issues):
+
+            return ResumeQualityStatus.REVIEW_REQUIRED,False
 
         if issues:
-            return (
-                ResumeQualityStatus.REVIEW_RECOMMENDED,
-                True,
-            )
 
-        return (
-            ResumeQualityStatus.AUTO_APPROVED,
-            True,
-        )
+            return ResumeQualityStatus.REVIEW_RECOMMENDED,True
+
+        return ResumeQualityStatus.AUTO_APPROVED,True

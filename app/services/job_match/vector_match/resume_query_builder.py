@@ -285,7 +285,7 @@ class ResumeQueryBuilder:
         return "；".join(part for part in parts if part)
 
     def _is_valid_query(self,text: str) -> bool:
-        return (len(text.strip()) >= self._min_chars_per_query)
+        return len(text.strip()) >= self._min_chars_per_query
 
     def _truncate(self,text: str) -> str:
         """

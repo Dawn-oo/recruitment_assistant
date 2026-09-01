@@ -6,10 +6,7 @@ from logging.handlers import TimedRotatingFileHandler
 
 # 主函数中调用
 
-def setup_logging(
-    log_level: int = logging.DEBUG,
-    log_dir: str = "./logs"
-) -> None:
+def setup_logging(log_level: int = logging.DEBUG,log_dir: str = None) -> None:
     """
     全局日志配置。
 
@@ -19,6 +16,8 @@ def setup_logging(
     # ==========================
     # 1. 创建日志目录
     # ==========================
+    if log_dir is None:
+        log_dir = Path(__file__).parent.parent / "logs"
     log_path = Path(log_dir)
     log_path.mkdir(parents=True, exist_ok=True)
 
@@ -70,7 +69,7 @@ def setup_logging(
         encoding="utf-8"
     )
 
-    file_handler.setLevel(log_level)
+    file_handler.setLevel("INFO")
     file_handler.setFormatter(formatter)
 
     file_handler._app_handler = True

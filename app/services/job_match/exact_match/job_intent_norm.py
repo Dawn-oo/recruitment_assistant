@@ -9,25 +9,13 @@ class JobIntentNormalizeResult(BaseModel):
     Resume 中求职岗位经过基础清洗和多岗位拆分后的结果,主要用于对申请岗位名称进行标准化处理。
     """
 
-    model_config = ConfigDict(
-        strict=True,
-        extra="ignore",
-    )
+    model_config = ConfigDict(strict=True,extra="ignore",)
 
-    raw_target_job_title: str | None = Field(
-        default=None,
-        description="简历中原始的求职岗位文本"
-    )
+    raw_target_job_title: str | None = Field(default=None,description="简历中原始的求职岗位文本")
 
-    job_titles: list[str] = Field(
-        default_factory=list,
-        description="拆分并完成基础清洗后的岗位名称"
-    )
+    job_titles: list[str] = Field(default_factory=list,description="拆分并完成基础清洗后的岗位名称")
 
-    is_multi_intent: bool = Field(
-        default=False,
-        description="是否识别出多个独立岗位意图"
-    )
+    is_multi_intent: bool = Field(default=False,description="是否识别出多个独立岗位意图")
 
 
 class JobIntentNormalizer:

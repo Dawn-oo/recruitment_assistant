@@ -1,38 +1,37 @@
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Sequence
 from typing import Any, TypeAlias
+from logging import Logger
 
 from app.tools.database_con import PostgresSSHPool,get_default_db
-
 from app.services.job_match.exact_match.job_alias import STANDARD_JOB_TITLES
 
 JDRow: TypeAlias = dict[str, Any]
 JDChunkRow: TypeAlias = dict[str, Any]
 
+logger = Logger(__name__)
 
 class JDRepository:
     """
     JD 数据访问层。
     只负责数据库访问：
     1. 查询内部标准岗位名称
-    2. 根据岗位名称精确查询 JD
-    3. 根据 JD ID 查询完整 JD
-    4. 使用 pgvector 对 JD chunks 做向量召回
+    2. 根据岗位名称精确查询JD
+    3. 根据JD ID查询完整JD
+    4. 使用pgvector对JD chunks做向量召回
     """
 
-    JD_TABLE = "jd_descriptions"
+    JD_TABLE = "job_descriptions"
     CHUNK_TABLE = "jd_chunks"
 
     # 当前项目 BGE-M3 embedding 维度
     EMBEDDING_DIM = 1024
 
     def __init__(self,db: PostgresSSHPool | None = None,) -> None:
-        """
-        可以显式传入连接池，方便测试和依赖注入。
-        不传则使用应用启动时初始化好的默认连接池。
-        """
+
         self._db = db or get_default_db()
 
     # 1. 标准岗位名称
@@ -74,7 +73,12 @@ class JDRepository:
             ORDER BY id
         """
 
-        return self._db.fetch_all(query,(title,))
+        start_time = time.perf_counter()
+        results = self._db.fetch_all(query,(title,))
+        end_time = time.perf_counter()
+        logger.info(f"查询岗位名称 {title} 耗时 {end_time - start_time:.4f} 秒")
+        return results
+
 
     def find_all_by_job_titles(self,job_titles: Sequence[str]) -> list[JDRow]:
         """
@@ -265,7 +269,11 @@ class JDRepository:
         # LIMIT
         params.append(top_k)
 
-        return self._db.fetch_all(query,tuple(params))
+        start_time = time.perf_counter()
+        results = self._db.fetch_all(query,tuple(params))
+        end_time = time.perf_counter()
+        logger.info(f"查询向量 {embedding} 耗时 {end_time - start_time:.4f} 秒")
+        return results
 
     # 5. Chunk 调试 / 证据追踪
 
@@ -303,8 +311,7 @@ class JDRepository:
     def _to_vector_literal(cls,embedding: Sequence[float]) -> str:
         """
         将 Python embedding 转换为 pgvector 可以解析的字符串。[0.1, 0.2]->"[0.1,0.2]"
-        这里使用 %s::vector，
-        因此不要求连接池提前注册 pgvector psycopg adapter。
+        这里使用 %s::vector，因此不要求连接池提前注册 pgvector psycopg adapter。
         """
 
         if len(embedding) != cls.EMBEDDING_DIM:

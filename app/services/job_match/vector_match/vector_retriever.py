@@ -158,13 +158,13 @@ class VectorRetriever:
         # 2. Batch Embedding
         # =====================================================
 
-        logger.info(f"开始批量嵌入 {len(texts)} 个 query text")
+        logger.info(f"开始批量嵌入 {len(texts)} 个query text")
         start_time = time.time()
 
         embeddings = self._embedder.embed_queries(texts)
 
         end_time = time.time()
-        logger.info(f"批量嵌入 {len(texts)} 个 query text 耗时 {end_time - start_time:.4f} 秒")
+        logger.info(f"批量嵌入完成，总计 {len(texts)} 个query text，耗时{end_time - start_time:.4f}秒")
 
         if len(embeddings) != len(units):
             raise ValueError(
@@ -177,7 +177,7 @@ class VectorRetriever:
         # 3. 每个 Query 独立检索 JD chunks
         # =====================================================
 
-        logger.info(f"开始批量检索 {len(units)} 个 query vector")
+        logger.info(f"开始批量检索 {len(units)} 个query vector")
         start_time = time.time()
 
         query_results: list[QueryRetrievalResult] = []
@@ -185,7 +185,8 @@ class VectorRetriever:
         for unit,embedding in zip(units,embeddings,strict=True):
 
             if len(embedding) == 0:
-                raise ValueError(f"QueryUnit {unit.query_id!r} 得到空 embedding")
+                logger.error(f"QueryUnit {unit.query_id!r} 得到空embedding")
+                raise ValueError
 
             rows = (self._repository.search_similar_chunks(
                     embedding,
@@ -206,7 +207,7 @@ class VectorRetriever:
             )
 
         end_time = time.time()
-        logger.info(f"批量检索 {len(units)} 个 query vector 耗时 {end_time - start_time:.4f} 秒")
+        logger.info(f"批量检索完成，总计 {len(units)} 个query vector，耗时{end_time - start_time:.4f}秒")
         return VectorRetrievalResult(query_results=query_results)
 
     @staticmethod

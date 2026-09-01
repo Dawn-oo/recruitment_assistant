@@ -73,38 +73,29 @@ class DeepSeekResumeExtractor(ResumeExtractor):
                 max_output_tokens=16000,
             )
 
-            elapsed_ms = (
-                                 time.perf_counter() - start
-                         ) * 1000
+            elapsed_ms = (time.perf_counter() - start) * 1000
 
-            logger.info(
-                "LLM请求成功 model=%s latency_ms=%.0f",
+            logger.debug(
+                "LLM请求成功,模型为：model=%s,请求耗时为：latency_ms=%.0f毫秒,token总消耗为%s",
                 self.model,
                 elapsed_ms,
+                response.usage.model_dump_json(indent=2, ensure_ascii=False),
             )
 
         except Exception as exc:
-            raise ResumeExtractionError(
-                f"DeepSeek API 调用失败: {exc}"
-            ) from exc
+            raise ResumeExtractionError(f"DeepSeek API 调用失败: {exc}") from exc
 
         content = response.output_text
         content = self.normalize_json_output(content)
 
         if response.status == "failed":
-            raise ResumeExtractionError(
-                f"DeepSeek 请求失败: {response.error}"
-            )
+            raise ResumeExtractionError(f"DeepSeek 请求失败: {response.error}")
 
         if response.status == "incomplete":
-            raise ResumeExtractionError(
-                f"DeepSeek 输出不完整: {response.incomplete_details}"
-            )
+            raise ResumeExtractionError(f"DeepSeek 输出不完整: {response.incomplete_details}")
 
         if not content or not content.strip():
-            raise ResumeExtractionError(
-                "DeepSeek 请求 completed，但 output_text 为空"
-            )
+            raise ResumeExtractionError("DeepSeek 请求 completed，但 output_text 为空")
 
         try:
             data = json.loads(content)
@@ -113,41 +104,25 @@ class DeepSeekResumeExtractor(ResumeExtractor):
             raise ResumeExtractionError("DeepSeek 返回结果不是合法 JSON") from exc
 
         try:
-            resume = ResumeModel.model_validate(
-                data
-            )
+            resume = ResumeModel.model_validate(data)
 
         except ValidationError as exc:
-            raise ResumeExtractionError(
-                f"ResumeSchema 校验失败: {exc}"
-            ) from exc
+            raise ResumeExtractionError(f"ResumeSchema 校验失败: {exc}") from exc
 
         return resume
 
     @staticmethod
-    def _load_cache(
-            cache_path: Path,
-    ) -> ResumeModel:
+    def _load_cache(cache_path: Path) -> ResumeModel:
 
-        content = cache_path.read_text(
-            encoding="utf-8"
-        )
+        content = cache_path.read_text(encoding="utf-8")
 
-        return ResumeModel.model_validate_json(
-            content
-        )
+        return ResumeModel.model_validate_json(content)
 
     @staticmethod
-    def _save_cache(
-            cache_path: Path,
-            resume: ResumeModel,
-    ) -> None:
+    def _save_cache(cache_path: Path,resume: ResumeModel) -> None:
 
         cache_path.write_text(
-            resume.model_dump_json(
-                indent=2
-            ),
-            encoding="utf-8",
+            resume.model_dump_json(indent=2),encoding="utf-8"
         )
 
     @staticmethod
@@ -199,12 +174,7 @@ class DeepSeekResumeExtractor(ResumeExtractor):
     </resume_markdown>
     """
 
-    async def extract(
-        self,
-        markdown: str,
-        *,
-        force_refresh: bool = False
-    ) -> ResumeModel:
+    async def extract(self,markdown: str,*,force_refresh: bool = False) -> ResumeModel:
         """
         将 document_parser 解析得到的 Markdown
         抽取为 ResumeSchema。
@@ -226,12 +196,17 @@ class DeepSeekResumeExtractor(ResumeExtractor):
         ):
             try:
                 resume = self._load_cache(cache_path)
-                logger.info("缓存文件加载完成")
+                logger.debug(f"缓存文件{cache_path}加载加载完成")
                 return resume
             except ValidationError as e:
                 raise ResumeExtractionError(f"缓存文件 {cache_path} 格式校验失败: {e}")
 
-        resume = await self._extract_with_llm(markdown)
+        try:
+            resume = await self._extract_with_llm(markdown)
+            logger.info("抽取简历结构化信息成功")
+        except Exception as exc:
+            raise ResumeExtractionError(f"LLM 抽取简历结构化信息失败: {exc}") from exc
 
         self._save_cache(cache_path,resume)
+        logger.debug(f"缓存文件{cache_path}保存完成")
         return resume

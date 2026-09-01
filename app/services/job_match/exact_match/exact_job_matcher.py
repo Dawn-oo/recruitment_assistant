@@ -17,6 +17,12 @@ class ExactMatchType(str, Enum):
     DIRECT = "direct"
     ALIAS = "alias"
 
+class ExactMatchStatus(str, Enum):
+    """
+    精确匹配命中状态。
+    """
+    MATCHED = "matched"
+    UNRESOLVED = "unresolved"
 
 class ExactMatchedJD(BaseModel):
     """
@@ -27,7 +33,6 @@ class ExactMatchedJD(BaseModel):
     department: str | None = None
     jd: dict[str, Any]
 
-
 class ExactIntentMatchResult(BaseModel):
     """
     这个申请岗位匹配得怎么样
@@ -35,20 +40,15 @@ class ExactIntentMatchResult(BaseModel):
     raw_title: str
     normalized_title: str | None = None
     match_type: ExactMatchType | None = None
+    status: ExactMatchStatus
 
-    matched_jds: list[ExactMatchedJD] = Field(
-        default_factory=list
-    )
-
+    matched_jds: list[ExactMatchedJD] = Field(default_factory=list)
 
 class ExactJobMatchResult(BaseModel):
     """
     匹配的结果合集，因为可能有多个岗位匹配结果
     """
-    model_config = ConfigDict(
-        strict=True,
-        extra="ignore",
-    )
+    model_config = ConfigDict(strict=True,extra="ignore",)
 
     intent_results: list[ExactIntentMatchResult] = Field(default_factory=list)
 
@@ -81,6 +81,7 @@ class ExactJobMatcher:
                 raw_title=title,
                 normalized_title=title,
                 match_type=ExactMatchType.DIRECT,
+                status=ExactMatchStatus.MATCHED,
                 matched_jds=self._build_matches(jd_result=direct_jds)
             )
         # =====================================================
@@ -96,6 +97,7 @@ class ExactJobMatcher:
                     raw_title=title,
                     normalized_title=alias_title,
                     match_type=ExactMatchType.ALIAS,
+                    status=ExactMatchStatus.MATCHED,
                     matched_jds=self._build_matches(jd_result=alias_jds)
                 )
 
@@ -107,18 +109,15 @@ class ExactJobMatcher:
             raw_title=title,
             normalized_title=None,
             match_type=None,
-            matched_jds=[],
+            status=ExactMatchStatus.UNRESOLVED,
+            matched_jds=[]
         )
 
     @staticmethod
-    def _build_matches(
-        *,
-        jd_result: Sequence[dict[str, Any]],
-    ) -> list[ExactMatchedJD]:
+    def _build_matches(*,jd_result: Sequence[dict[str, Any]]) -> list[ExactMatchedJD]:
         """
         Repository row -> ExactMatchedJD。
         """
-
         matches: list[ExactMatchedJD] = []
 
         for row in jd_result:

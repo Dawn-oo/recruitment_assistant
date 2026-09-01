@@ -128,11 +128,57 @@ class MinerUParser(DocumentParser):
 
         return batch_id, file_urls[0]
 
-    @staticmethod
-    def upload_file(
+    def parse(
+        self,
         file_path: str | Path,
-        upload_url: str,
-    ) -> None:
+        cache_dir: str | Path = None,
+        *,
+        data_id: str | None = None,
+        is_ocr: bool = False,
+    ) -> DocumentParseResult:
+
+        if cache_dir is None:
+            cache_dir = self.cache_dir
+
+        # 传入的是原始文件的路径
+        path = Path(file_path)
+        file_hash = calculate_file_hash(path)
+        cache_path = Path(cache_dir) / file_hash
+        zip_path = cache_path / f"{file_hash}.zip"
+        result_dir = cache_path / "result"
+
+        if zip_path.exists() and zip_path.is_file():
+
+            logger.debug(f"发现已有解析结果 {path.name}")
+            if not result_dir.exists():
+                self.extract_zip(zip_path, result_dir)
+
+            markdown = self.find_markdown(result_dir)
+            content_list = self.find_content_list(result_dir)
+
+            return DocumentParseResult(
+                markdown=markdown,
+                content_list=content_list,
+                document_hash=file_hash,
+                raw_result_path=str(cache_path),
+                from_cache=True
+            )
+
+        else:
+            logger.debug("未发现已有解析结果")
+            logger.debug(f"开始解析: {path.name}")
+
+            try:
+                result = self._parse_with_mineru(
+                    file_path, data_id=data_id,is_ocr=is_ocr,
+                )
+            except Exception as e:
+                raise Exception(f"使用mineru解析失败 {e}")
+            return result
+
+
+    @staticmethod
+    def upload_file(file_path: str | Path,upload_url: str) -> None:
         """
         将本地文件 PUT 到 document_parser 返回的签名 URL。
         """
@@ -153,10 +199,7 @@ class MinerUParser(DocumentParser):
                 f"{response.text[:500]}"
             )
 
-    def get_batch_result(
-        self,
-        batch_id: str,
-    ) -> dict[str, Any]:
+    def get_batch_result(self,batch_id: str) -> dict[str, Any]:
         """
         查询解析任务。
         """
@@ -180,15 +223,9 @@ class MinerUParser(DocumentParser):
 
         return result["data"]
 
-    def wait_until_done(
-        self,
-        batch_id: str,
-    ) -> str:
+    def wait_until_done(self,batch_id: str) -> str:
         """
         轮询 document_parser，直到解析完成。
-
-        Returns:
-            full_zip_url
         """
 
         start_time = time.monotonic()
@@ -259,10 +296,7 @@ class MinerUParser(DocumentParser):
             time.sleep(self.poll_interval)
 
     @staticmethod
-    def download_zip(
-        zip_url: str,
-        output_path: str | Path,
-    ) -> Path:
+    def download_zip(zip_url: str,output_path: str | Path) -> Path:
         """
         下载 document_parser 返回的解析结果 ZIP。
         """
@@ -291,10 +325,7 @@ class MinerUParser(DocumentParser):
         return output_path
 
     @staticmethod
-    def extract_zip(
-        zip_path: str | Path,
-        output_dir: str | Path,
-    ) -> Path:
+    def extract_zip(zip_path: str | Path,output_dir: str | Path) -> Path:
         """
         解压 document_parser 解析结果。
         """
@@ -313,9 +344,7 @@ class MinerUParser(DocumentParser):
         return output_dir
 
     @staticmethod
-    def find_markdown(
-        result_dir: str | Path,
-    ) -> str:
+    def find_markdown(result_dir: str | Path) -> str:
         """
         从 document_parser 结果目录中读取 full.md。
         """
@@ -336,9 +365,7 @@ class MinerUParser(DocumentParser):
         )
 
     @staticmethod
-    def find_content_list(
-        result_dir: str | Path,
-    ) -> list | dict | None:
+    def find_content_list(result_dir: str | Path) -> list | dict | None:
         """
         查找 document_parser 的 content_list.json。
         """
@@ -363,14 +390,8 @@ class MinerUParser(DocumentParser):
         ) as file:
             return json.load(file)
 
-    def _parse_with_mineru(
-            self,
-            file_path: Path,
-            output_dir: str | Path = None,
-            *,
-            data_id: str | None = None,
-            is_ocr: bool = False,
-    ) -> DocumentParseResult:
+    def _parse_with_mineru(self,file_path: Path,output_dir: str | Path = None,*,data_id: str | None = None,
+        is_ocr: bool = False,) -> DocumentParseResult:
         """
         完整流程：
 
@@ -390,6 +411,7 @@ class MinerUParser(DocumentParser):
         if output_dir is None:
             output_dir = self.cache_dir
 
+        start = time.perf_counter()
         # 1. 获取上传地址
         batch_id, upload_url = self.apply_upload_url(
             path,
@@ -397,24 +419,20 @@ class MinerUParser(DocumentParser):
             is_ocr=is_ocr,
         )
 
-        logger.info(f"文件上传地址获取成功, 文件id为，batch_id: {batch_id}")
+        logger.debug(f"文件上传地址获取成功, 文件id为: {batch_id}")
 
         # 2. 上传 PDF
 
-        self.upload_file(
-            path,
-            upload_url,
-        )
+        self.upload_file(path,upload_url)
 
-        logger.info(f"文件{path.name}上传MinerU平台成功，等待解析完成...,batch_id={batch_id}")
+        logger.debug(f"文件{path.name}上传MinerU平台成功，等待解析完成...,batch_id={batch_id}")
 
     # 3. 等待解析完成
-        zip_url = self.wait_until_done(
-        batch_id
-        )
+        zip_url = self.wait_until_done(batch_id)
 
-        logger.info(
-            f"MinerU 解析完成{path.name}文件完成，batch_id={batch_id}")
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        logger.info(f"MinerU 解析{path.name}文件完成，batch_id={batch_id},耗时：{elapsed_ms}毫秒")
 
         # 每个任务单独保存
         task_dir = Path(output_dir) / file_hash_key
@@ -423,26 +441,22 @@ class MinerUParser(DocumentParser):
         extract_dir = task_dir / "result"
 
         # 4. 下载 ZIP
-        self.download_zip(
-            zip_url,
-            zip_path,
-        )
+        try:
+            self.download_zip(zip_url,zip_path)
+            logger.debug(f"文件{path.name}下载完成，结果保存到{zip_path}")
+        except Exception as e:
+            raise Exception(f"文件{path.name}下载失败: {e}，注意检查网络连接，不要使用代理下载")
 
         # 5. 解压
-        self.extract_zip(
-            zip_path,
-            extract_dir,
-        )
+        self.extract_zip(zip_path,extract_dir)
+        logger.debug(f"文件{path.name}解压完成，结果保存到{extract_dir}")
 
         # 6. 获取 Markdown
-        markdown = self.find_markdown(
-            extract_dir
-        )
+        markdown = self.find_markdown(extract_dir)
+        logger.debug(f"文件{path.name}解析完成")
 
         # 7. 获取 content_list
-        content_list = self.find_content_list(
-            extract_dir
-        )
+        content_list = self.find_content_list(extract_dir)
 
         return DocumentParseResult(
             markdown=markdown,
@@ -451,58 +465,4 @@ class MinerUParser(DocumentParser):
             raw_result_path=str(extract_dir),
             document_hash=file_hash_key
         )
-
-
-    def parse(
-        self,
-        file_path: str | Path,
-        cache_dir: str | Path = None,
-        *,
-        data_id: str | None = None,
-        is_ocr: bool = False,
-    ) -> DocumentParseResult:
-
-        if cache_dir is None:
-            cache_dir = self.cache_dir
-
-        # 传入的是原始文件的路径
-        path = Path(file_path)
-        file_hash = calculate_file_hash(
-            path
-        )
-        cache_path = Path(cache_dir) / file_hash
-        zip_path = cache_path / f"{file_hash}.zip"
-        result_dir = cache_path / "result"
-
-        if zip_path.exists() and zip_path.is_file():
-
-            logger.info(
-                f"发现已有解析结果 {path.name}")
-            if not result_dir.exists():
-                self.extract_zip(zip_path, result_dir)
-
-            markdown = self.find_markdown(result_dir)
-            content_list = self.find_content_list(result_dir)
-
-            return DocumentParseResult(
-                markdown=markdown,
-                content_list=content_list,
-                document_hash=file_hash,
-                raw_result_path=str(cache_path),
-                from_cache=True
-            )
-
-        else:
-            print("未发现已有解析结果")
-            print(f"开始解析: {path.name}")
-
-            try:
-                result = self._parse_with_mineru(
-                    file_path, data_id=data_id,is_ocr=is_ocr,
-                )
-            except Exception as e:
-                logger.exception(
-                    f"{path.name} 文档解析失败 {e}")
-                raise
-            return result
 
