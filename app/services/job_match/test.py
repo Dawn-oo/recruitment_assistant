@@ -12,10 +12,13 @@ from app.core.log_config import setup_logging
 from app.tools.database_con import PostgresSSHConfig, PostgresSSHPool
 from app.services.job_match.vector_match.resume_query_builder import ResumeQueryBuilder
 from app.services.job_match.vector_match.vector_retriever import VectorRetriever
+from app.services.job_match.vector_match.candidate_aggregator import CandidateAggregator
 from app.services.job_match.jd_repository import JDRepository
 from app.tools.embeding_assist import BgeM3EmbeddingProvider
 from app.services.job_match.exact_match.exact_job_matcher import ExactJobMatcher
 from app.services.job_match.exact_match.job_intent_norm import JobIntentNormalizer
+from candidateselector import CandidateSelector
+
 
 time1 = time.perf_counter()
 print(f"导包耗时为：{time1 - start_run_time}")
@@ -86,9 +89,7 @@ async def main():
     print()
 
     # 嵌入模型，主要负责将简历信息转换为向量表示
-
     embedder = BgeM3EmbeddingProvider()
-
 
     config = PostgresSSHConfig.from_env()
 
@@ -99,13 +100,14 @@ async def main():
         logger.info("数据库连接完成,耗时为：latency_ms=%.0f毫秒", (end_time - start_time) * 1000)
 
         print("构建精确匹配器")
-        exact_job_matcher = ExactJobMatcher(repository=JDRepository(db=db))
+        jd_rep = JDRepository(db=db)
+        exact_job_matcher = ExactJobMatcher(repository=jd_rep)
         print("精确匹配器构建完成")
         print()
 
         print("构建向量检索器")
         # 向量检索器，主要负责根据查询语句和简历向量表示，从数据库中检索最相关的岗位描述
-        retriever = VectorRetriever(repository=JDRepository(db=db),embedder=embedder)
+        retriever = VectorRetriever(repository=jd_rep,embedder=embedder)
         print("向量检索器构建完成")
         print()
 
@@ -113,24 +115,42 @@ async def main():
 
         # 1、精确匹配岗位意图
         retrieval_result1 = exact_job_matcher.match(job_intent_result)
-
         # print(retrieval_result1.intent_results[0].matched_jds[0].model_dump_json(indent=2, ensure_ascii=False))
+
+
         # 2、向量检索岗位描述
         retrieval_result2 = retriever.retrieve(query_result.query_units)
         print("检索完成")
         print(f"检索结果为：{len(retrieval_result2.query_results)}条符合条件的岗位描述")
-        print(retrieval_result2.query_results[0].model_dump_json(indent=2, ensure_ascii=False))
+        # print(retrieval_result2.query_results[0].model_dump_json(indent=2, ensure_ascii=False))
 
-        with open("test.json","w",encoding="utf-8") as f:
-            f.write("{\"精确匹配岗位意图结果\":\n")
-            f.write(retrieval_result1.model_dump_json(indent=2, ensure_ascii=False) + "\n")
-            f.write(",\n")
 
-            f.write("\n")
+        # 3、聚合岗位岗位描述
+        print("构建候选岗位聚合器")
+        candidate_aggregator = CandidateAggregator()
+        print("候选岗位聚合器构建完成")
+        print("聚合中...")
+        aggregated_result = candidate_aggregator.aggregate(retrieval_result2)
+        print("聚合完成")
+        # print(aggregated_result.model_dump_json(indent=2, ensure_ascii=False))
 
-            f.write("\"向量检索岗位描述结果\":\n")
-            f.write(retrieval_result2.model_dump_json(indent=2, ensure_ascii=False) + "\n")
-            f.write("}\n")
+        # 4、jd返回路由选择
+        candidateselector = CandidateSelector(repository=jd_rep)
+        result = candidateselector.select(exact_result=retrieval_result1,semantic_result=aggregated_result)
+
+        with open("result.json", "w", encoding="utf-8") as f:
+            f.write(result.model_dump_json(indent=2, ensure_ascii=False))
+
+        # with open("test.json","w",encoding="utf-8") as f:
+        #     f.write("{\"精确匹配岗位意图结果\":\n")
+        #     f.write(retrieval_result1.model_dump_json(indent=2, ensure_ascii=False) + "\n")
+        #     f.write(",\n")
+        #
+        #     f.write("\n")
+        #
+        #     f.write("\"向量检索岗位描述结果\":\n")
+        #     f.write(retrieval_result2.model_dump_json(indent=2, ensure_ascii=False) + "\n")
+        #     f.write("}\n")
 
 
 if __name__ == "__main__":

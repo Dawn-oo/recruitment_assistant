@@ -33,7 +33,7 @@ class ResumeQueryUnit(BaseModel):
         ),
     )
 
-    weight: float = Field(default=1.0,gt=0,description="后续候选 JD 聚合时可使用的权重")
+    weight: float = Field(default=1.0,gt=0,description="后续候选JD聚合时可使用的权重")
 
 
 class ResumeQueryBuildResult(BaseModel):

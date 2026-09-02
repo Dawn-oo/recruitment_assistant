@@ -152,9 +152,7 @@ class JDRepository:
                 -> find_by_ids()
         """
 
-        ids = self._deduplicate_ints(
-            jd_ids
-        )
+        ids = self._deduplicate_ints(jd_ids)
 
         if not ids:
             return []
@@ -178,10 +176,7 @@ class JDRepository:
             WHERE id = ANY(%s)
         """
 
-        rows = self._db.fetch_all(
-            query,
-            (ids,),
-        )
+        rows = self._db.fetch_all(query,(ids,))
 
         # 保持调用方给出的 jd_id 顺序
         row_map = {

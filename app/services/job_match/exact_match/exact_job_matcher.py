@@ -31,7 +31,7 @@ class ExactMatchedJD(BaseModel):
     jd_id: int
     job_title: str
     department: str | None = None
-    jd: dict[str, Any]
+    jd: dict
 
 class ExactIntentMatchResult(BaseModel):
     """
@@ -51,7 +51,6 @@ class ExactJobMatchResult(BaseModel):
     model_config = ConfigDict(strict=True,extra="ignore",)
 
     intent_results: list[ExactIntentMatchResult] = Field(default_factory=list)
-
 
 class ExactJobMatcher:
 
@@ -110,7 +109,7 @@ class ExactJobMatcher:
             normalized_title=None,
             match_type=None,
             status=ExactMatchStatus.UNRESOLVED,
-            matched_jds=[]
+            matched_jds=[],
         )
 
     @staticmethod
@@ -126,7 +125,7 @@ class ExactJobMatcher:
                     jd_id=int(row["id"]),
                     job_title=str(row["job_title"]),
                     department=row.get("department"),
-                    jd=dict(row),
+                    jd=dict(row)
                 )
             )
 

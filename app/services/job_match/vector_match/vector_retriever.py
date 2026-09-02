@@ -96,15 +96,6 @@ class VectorRetriever:
         QueryRetrievalResult[]
             ↓
         VectorRetrievalResult
-
-    不负责：
-        - ResumeModel -> QueryUnit
-        - JD chunk -> JD candidate 聚合
-        - Exact Match
-        - Alias
-        - Primary / Alternative JD 选择
-        - 最终岗位匹配评分
-        - LLM 分析
     """
 
     def __init__(self,repository: JDRepository,embedder: BgeM3EmbeddingProvider,*,top_k_per_query: int = 20,

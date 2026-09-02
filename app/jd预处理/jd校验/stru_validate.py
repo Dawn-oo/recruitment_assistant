@@ -1,4 +1,4 @@
-from jd_standard_schema import JDModel
+from app.jd预处理.jd校验.jd_standard_schema import JDModel
 from pydantic import ValidationError
 import json
 from pathlib import Path
