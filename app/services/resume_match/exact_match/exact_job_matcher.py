@@ -5,10 +5,9 @@ from enum import Enum
 from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.services.job_match.jd_repository import JDRepository
-from app.services.job_match.exact_match.job_alias import JOB_TITLE_ALIASES
-from app.services.job_match.exact_match.job_intent_norm import JobIntentNormalizeResult
-
+from .job_alias import JOB_TITLE_ALIASES
+from .job_intent_norm import JobIntentNormalizeResult
+from app.services.resume_match.sql_search.jd_repository import JDRepository
 
 class ExactMatchType(str, Enum):
     """
@@ -53,6 +52,7 @@ class ExactJobMatchResult(BaseModel):
     intent_results: list[ExactIntentMatchResult] = Field(default_factory=list)
 
 class ExactJobMatcher:
+    # 延迟导入，避免循环依赖
 
     def __init__(self,repository: JDRepository) -> None:
         self._repository = repository

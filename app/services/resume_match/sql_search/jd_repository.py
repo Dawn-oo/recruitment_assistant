@@ -7,7 +7,7 @@ from typing import Any, TypeAlias
 from logging import Logger
 
 from app.tools.database_con import PostgresSSHPool,get_default_db
-from app.services.job_match.exact_match.job_alias import STANDARD_JOB_TITLES
+from app.services.resume_match.exact_match.job_alias import STANDARD_JOB_TITLES
 
 JDRow: TypeAlias = dict[str, Any]
 JDChunkRow: TypeAlias = dict[str, Any]

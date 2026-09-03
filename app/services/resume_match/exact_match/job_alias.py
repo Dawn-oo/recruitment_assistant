@@ -1,4 +1,4 @@
-from app.tools.database_con import PostgresSSHConfig, PostgresSSHPool
+from app.tools import PostgresSSHConfig, PostgresSSHPool
 
 try:
     config = PostgresSSHConfig.from_env()

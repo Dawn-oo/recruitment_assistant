@@ -1,16 +1,9 @@
 from __future__ import annotations
 
-from enum import Enum
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.resume_handle.resume_extractor.resume_schema import ResumeModel
-
-
-class ResumeQueryType(str, Enum):
-    WORK_EXPERIENCE = "work_experience"
-    PROJECT_EXPERIENCE = "project_experience"
-    SKILLS = "skills"
+from app.services.resume_match.vector_match.base import ResumeQueryType
 
 
 class ResumeQueryUnit(BaseModel):

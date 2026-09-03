@@ -6,9 +6,9 @@ from typing import Any
 from collections.abc import Mapping, Sequence
 from pydantic import BaseModel,ConfigDict,Field,ValidationError
 
-from app.services.job_match.exact_match.exact_job_matcher import ExactJobMatchResult,ExactMatchType
-from app.services.job_match.vector_match.candidate_aggregator import SemanticJobMatchResult,CandidateAggregationResult
-from jd_repository import JDRepository
+from app.services.resume_match.exact_match.exact_job_matcher import ExactJobMatchResult,ExactMatchType
+from app.services.resume_match.vector_match.candidate_aggregator import SemanticJobMatchResult,CandidateAggregationResult
+from app.services.resume_match.sql_search.jd_repository import JDRepository
 
 logger = logging.getLogger(__name__)
 
@@ -42,50 +42,42 @@ class CandidateSelectionMode(str, Enum):
 
 class CandidateContextStatus(str, Enum):
     """候选 JD 上下文是否能够继续交给 Agent 分析。"""
-
+    # 存在至少一个候选 JD，并且被选中的 JD 都成功加载了完整结构化信息，也没有影响分析可靠性的异常
     READY = "ready"
+    #至少存在一个能够分析的完整 JD，所以流程可以继续，但数据存在部分缺失或不确定性
     DEGRADED = "degraded"
+    # 没有任何可供 Agent 分析的完整候选 JD
     BLOCKED = "blocked"
 
 
 class ResponsibilityModel(BaseModel):
     """一组岗位职责。"""
 
-    model_config = ConfigDict(
-        strict=True,
-        extra="ignore",
-    )
+    model_config = ConfigDict(strict=True,extra="ignore")
 
+    tasks: list[str] = Field(default_factory=list)
     sequence: int | None = None
     description: str
-    time_percentage: str | None = None
-    tasks: list[str] = Field(default_factory=list)
+    time_percentage: int | float | str | None = None
 
 
 class JobDescriptionContext(BaseModel):
     """提供给Agent分析的结构化JD。"""
 
-    model_config = ConfigDict(
-        strict=True,
-        extra="ignore",
-    )
+    model_config = ConfigDict(strict=True,extra="ignore")
 
     jd_id: int
 
     job_title: str
     department: str
 
-    responsibilities: list[ResponsibilityModel] = Field(
-        default_factory=list
-    )
+    responsibilities: list[ResponsibilityModel] = Field(default_factory=list)
 
     minimum_education: str
     education_background: str
     work_experience_raw: str | None = None
 
-    competencies: list[str] = Field(
-        default_factory=list
-    )
+    competencies: list[str] = Field(default_factory=list)
 
 
 class ExactMatchEvidence(BaseModel):
@@ -278,14 +270,7 @@ class CandidateSelector:
 
         return result
 
-    def _load_selected_jd_contexts(
-            self,
-            *,
-            drafts: Sequence[_CandidateDraft],
-    ) -> tuple[
-        dict[int, JobDescriptionContext],
-        list[str],
-    ]:
+    def _load_selected_jd_contexts(self,*,drafts: Sequence[_CandidateDraft],) -> tuple[dict[int, JobDescriptionContext],list[str]]:
         """
         根据候选草稿中的jd_id批量查询并构造JD上下文。
 
@@ -302,10 +287,7 @@ class CandidateSelector:
         DEGRADED还是BLOCKED。
         """
         selected_jd_ids = list(
-            dict.fromkeys(
-                draft.jd_id
-                for draft in drafts
-            )
+            dict.fromkeys(draft.jd_id for draft in drafts)
         )
 
         if not selected_jd_ids:
@@ -314,9 +296,7 @@ class CandidateSelector:
         selected_jd_id_set = set(selected_jd_ids)
 
         try:
-            rows = self._repository.find_by_ids(
-                selected_jd_ids
-            )
+            rows = self._repository.find_by_ids(selected_jd_ids)
         except Exception:
             logger.exception(
                 "批量查询候选岗位JD失败: jd_ids=%s",
@@ -328,10 +308,7 @@ class CandidateSelector:
                 "暂时无法获得岗位分析上下文"
             ]
 
-        context_by_id: dict[
-            int,
-            JobDescriptionContext,
-        ] = {}
+        context_by_id: dict[int,JobDescriptionContext] = {}
 
         warnings: list[str] = []
 
@@ -345,40 +322,21 @@ class CandidateSelector:
             try:
                 context = self._map_jd_row_to_context(row)
             except CandidateSelectionError as exc:
-                logger.warning(
-                    "JD记录转换失败: jd_id=%r, error=%s",
-                    row_id,
-                    exc,
-                )
+                logger.warning("JD记录转换失败: jd_id=%r, error=%s",row_id,exc)
 
-                warnings.append(
-                    "存在无法转换为Agent上下文的JD记录: "
-                    f"jd_id={row_id!r}"
-                )
+                warnings.append(f"存在无法转换为Agent上下文的JD记录: jd_id={row_id!r}")
                 continue
 
             if context.jd_id not in selected_jd_id_set:
-                logger.warning(
-                    "Repository返回了未请求的JD: jd_id=%d",
-                    context.jd_id,
-                )
+                logger.warning("Repository返回了未请求的JD: jd_id=%d",context.jd_id)
 
-                warnings.append(
-                    "Repository返回了未请求的JD: "
-                    f"jd_id={context.jd_id}"
-                )
+                warnings.append("Repository返回了未请求的JD: "f"jd_id={context.jd_id}")
                 continue
 
             if context.jd_id in context_by_id:
-                logger.warning(
-                    "Repository返回了重复的JD: jd_id=%d",
-                    context.jd_id,
-                )
+                logger.warning("Repository返回了重复的JD: jd_id=%d",context.jd_id)
 
-                warnings.append(
-                    "Repository返回了重复的JD: "
-                    f"jd_id={context.jd_id}"
-                )
+                warnings.append("Repository返回了重复的JD: "f"jd_id={context.jd_id}")
                 continue
 
             context_by_id[context.jd_id] = context
@@ -386,8 +344,9 @@ class CandidateSelector:
         return context_by_id, warnings
 
     def _validate_semantic_candidates(self,semantic_candidates: Sequence[SemanticJobMatchResult]
-        ) -> None:
+    ) -> None:
         """校验语义候选中 jd_id 唯一，避免重复候选造成来源覆盖。"""
+
         seen_jd_ids: set[int] = set()
 
         for candidate in semantic_candidates:
@@ -400,7 +359,7 @@ class CandidateSelector:
             seen_jd_ids.add(candidate.jd_id)
 
     def _collect_exact_matches(self,exact_result: ExactJobMatchResult | None
-        ) -> tuple[dict[int, list[ExactMatchEvidence]],list[int],list[str],list[str]]:
+    ) -> tuple[dict[int, list[ExactMatchEvidence]],list[int],list[str],list[str]]:
 
         """
         按jd_id整理精确匹配结果。
@@ -435,7 +394,7 @@ class CandidateSelector:
                 warnings.append(f"第{index + 1}个岗位意图缺少raw_title")
                 continue
 
-            # 没有实际JD，不生成候选。
+            # 没有实际JD，不生成候选。这就是对精确匹配未匹配岗位的处理。
             if not intent.matched_jds:
                 if raw_title not in unmatched_titles:
                     unmatched_titles.append(raw_title)
@@ -478,7 +437,7 @@ class CandidateSelector:
         )
 
     def _index_semantic_candidates(self,semantic_candidates: Sequence[SemanticJobMatchResult]
-        ) -> tuple[dict[int, tuple[int, SemanticJobMatchResult]],list[int]]:
+    ) -> tuple[dict[int, tuple[int, SemanticJobMatchResult]],list[int]]:
 
         """按 CandidateAggregator 已有排序建立jd_id到语义候选的索引。"""
 
@@ -491,12 +450,13 @@ class CandidateSelector:
 
         return semantic_by_jd, semantic_jd_order
 
-    def _select_drafts(self,*,
-        exact_evidence_by_jd: Mapping[int,list[ExactMatchEvidence]],
-        exact_jd_order: Sequence[int],
-        semantic_by_jd: Mapping[int,tuple[int, SemanticJobMatchResult]],
-        semantic_jd_order: Sequence[int]
-        ) -> tuple[list[_CandidateDraft], CandidateSelectionMode]:
+    def _select_drafts(self,
+            *,
+            exact_evidence_by_jd: Mapping[int,list[ExactMatchEvidence]],
+            exact_jd_order: Sequence[int],
+            semantic_by_jd: Mapping[int,tuple[int, SemanticJobMatchResult]],
+            semantic_jd_order: Sequence[int]
+    ) -> tuple[list[_CandidateDraft], CandidateSelectionMode]:
 
         """根据精确优先、语义补充或语义兜底策略生成候选草稿。"""
 
@@ -604,17 +564,10 @@ class CandidateSelector:
         candidates: list[AgentJobCandidateContext] = []
         missing_jd_ids: list[int] = []
 
-        for selection_rank, draft in enumerate(
-                drafts,
-                start=1,
-        ):
+        for selection_rank, draft in enumerate(drafts,start=1):
             # semantic_candidate和semantic_rank应当同时存在或同时为空。
-            has_semantic_candidate = (
-                    draft.semantic_candidate is not None
-            )
-            has_semantic_rank = (
-                    draft.semantic_rank is not None
-            )
+            has_semantic_candidate = (draft.semantic_candidate is not None)
+            has_semantic_rank = (draft.semantic_rank is not None)
 
             if has_semantic_candidate != has_semantic_rank:
                 raise CandidateSelectionError(
@@ -633,10 +586,7 @@ class CandidateSelector:
 
             if not analyzable:
                 missing_jd_ids.append(draft.jd_id)
-                candidate_warnings.append(
-                    "候选岗位缺少完整JD，"
-                    "暂时不能执行岗位适配分析"
-                )
+                candidate_warnings.append("候选岗位缺少完整JD，暂时不能执行岗位适配分析")
 
             candidate = AgentJobCandidateContext(
                 selection_rank=selection_rank,
@@ -645,16 +595,11 @@ class CandidateSelector:
                 priority=draft.priority,
 
                 # 直接使用按JD维度整理后的精确匹配依据。
-                exact_evidence=list(
-                    draft.exact_evidence
-                ),
+                exact_evidence=list(draft.exact_evidence),
 
                 # 直接复用CandidateAggregator的输出，
-                # 不再转换为SemanticMatchContext。
                 semantic_rank=draft.semantic_rank,
-                semantic_candidate=(
-                    draft.semantic_candidate
-                ),
+                semantic_candidate=draft.semantic_candidate,
 
                 analyzable=analyzable,
                 jd=jd_context,
@@ -663,10 +608,7 @@ class CandidateSelector:
 
             candidates.append(candidate)
 
-        analyzable_candidate_count = sum(
-            candidate.analyzable
-            for candidate in candidates
-        )
+        analyzable_candidate_count = sum(candidate.analyzable for candidate in candidates)
 
         if unmatched_titles:
             warnings.append(
@@ -687,26 +629,16 @@ class CandidateSelector:
             status = CandidateContextStatus.BLOCKED
             blocked_reason = "no_candidate_job"
 
-            warnings.append(
-                "精确匹配和语义召回均未产生候选JD"
-            )
+            warnings.append("精确匹配和语义召回均未产生候选JD")
 
         elif analyzable_candidate_count == 0:
             status = CandidateContextStatus.BLOCKED
-            blocked_reason = (
-                "candidate_jd_context_unavailable"
-            )
+            blocked_reason = "candidate_jd_context_unavailable"
 
-            warnings.append(
-                "所有候选岗位均缺少完整JD上下文，"
-                "无法执行岗位适配分析"
-            )
+            warnings.append("所有候选岗位均缺少完整JD上下文,无法执行岗位适配分析")
 
-        elif (
-                missing_jd_ids
-                or unmatched_titles
-                or warnings
-        ):
+        elif missing_jd_ids or unmatched_titles or warnings:
+
             status = CandidateContextStatus.DEGRADED
             blocked_reason = None
 
@@ -721,30 +653,19 @@ class CandidateSelector:
         return AgentCandidateContext(
             status=status,
             selection_mode=selection_mode,
-
             exact_input_count=exact_input_count,
             semantic_input_count=semantic_input_count,
-
             selected_candidate_count=len(candidates),
-            analyzable_candidate_count=(
-                analyzable_candidate_count
-            ),
-
+            analyzable_candidate_count=analyzable_candidate_count,
             candidates=candidates,
-
-            unmatched_requested_titles=(
-                unmatched_titles
-            ),
+            unmatched_requested_titles=unmatched_titles,
             missing_jd_ids=missing_jd_ids,
-
             warnings=warnings,
             blocked_reason=blocked_reason,
         )
 
     @staticmethod
-    def _resolve_source(
-            draft: _CandidateDraft,
-    ) -> CandidateSource:
+    def _resolve_source(draft: _CandidateDraft) -> CandidateSource:
         """
         根据候选草稿中包含的匹配依据判断候选来源。
         """
@@ -788,34 +709,22 @@ class CandidateSelector:
         jd_id = row.get("id")
 
         if not isinstance(jd_id, int):
-            raise CandidateSelectionError(
-                "JD数据库记录缺少有效主键id: "
-                f"id={jd_id!r}"
-            )
+            raise CandidateSelectionError(f"JD数据库记录缺少有效主键id:id={jd_id!r}")
 
         context_payload: dict[str, Any] = {
             "jd_id": jd_id,
             "job_title": row.get("job_title"),
             "department": row.get("department"),
-            "responsibilities": row.get(
-                "responsibilities"
-            ),
-            "minimum_education": row.get(
-                "minimum_education"
-            ),
-            "education_background": row.get(
-                "education_background"
-            ),
-            "work_experience_raw": row.get(
-                "work_experience_raw"
-            ),
+            "responsibilities": row.get("responsibilities"),
+            "minimum_education": row.get("minimum_education"),
+            "education_background": row.get("education_background"),
+            "work_experience_raw": row.get("work_experience_raw"),
             "competencies": row.get("competencies"),
         }
 
         try:
-            return JobDescriptionContext.model_validate(
-                context_payload
-            )
+            print(context_payload)
+            return JobDescriptionContext.model_validate(context_payload)
         except ValidationError as exc:
             raise CandidateSelectionError(
                 "JD数据库记录无法转换为"

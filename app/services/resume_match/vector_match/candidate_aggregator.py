@@ -9,7 +9,7 @@ from typing import Mapping,Sequence
 from pydantic import BaseModel, ConfigDict, Field
 
 from .vector_retriever import QueryRetrievalResult, RetrievedChunk, VectorRetrievalResult
-from .resume_query_builder import ResumeQueryType
+from app.services.resume_match.vector_match.base import ResumeQueryType
 
 
 logger = logging.getLogger(__name__)

@@ -4,24 +4,33 @@ print("开始运行")
 import asyncio
 import logging
 
-from app.services.resume_handle.resume_pipline import ResumeProcessingService
-from app.services.resume_handle.document_parser.resume_parser import MinerUParser
-from app.services.resume_handle.resume_extractor.resume_extractor_deepseek import DeepSeekResumeExtractor
-from app.services.resume_handle.resume_validate.validate_report import ResumeValidator
+from app.services.resume_handle import create_resume_processing_service
+time1 = time.perf_counter()
+print(f"导入建立解析文件包耗时为：{time1 - start_run_time}")
+
+
 from app.core.log_config import setup_logging
 from app.tools.database_con import PostgresSSHConfig, PostgresSSHPool
-from app.services.job_match.vector_match.resume_query_builder import ResumeQueryBuilder
-from app.services.job_match.vector_match.vector_retriever import VectorRetriever
-from app.services.job_match.vector_match.candidate_aggregator import CandidateAggregator
-from app.services.job_match.jd_repository import JDRepository
-from app.tools.embeding_assist import BgeM3EmbeddingProvider
-from app.services.job_match.exact_match.exact_job_matcher import ExactJobMatcher
-from app.services.job_match.exact_match.job_intent_norm import JobIntentNormalizer
-from candidateselector import CandidateSelector
+time2 = time.perf_counter()
+print(f"导入建立数据库连接包耗时为：{time2 - time1}")
 
+from app.services.resume_match.vector_match.resume_query_builder import ResumeQueryBuilder
+from app.services.resume_match.vector_match.vector_retriever import VectorRetriever
+from app.services.resume_match.vector_match.candidate_aggregator import CandidateAggregator
+from app.services.resume_match.sql_search.jd_repository import JDRepository
+time3 = time.perf_counter()
+print(f"导入建立向量匹配相关包耗时为：{time3 - time2}")
 
-time1 = time.perf_counter()
-print(f"导包耗时为：{time1 - start_run_time}")
+from app.tools import BgeM3EmbeddingProvider
+time4 = time.perf_counter()
+print(f"导入建立向量嵌入相关包耗时为：{time4 - time3}")
+
+from app.services.resume_match.exact_match.exact_job_matcher import ExactJobMatcher
+from app.services.resume_match.exact_match.job_intent_norm import JobIntentNormalizer
+from app.services.resume_match.candidate_selector import CandidateSelector
+time5 = time.perf_counter()
+print(f"导入建立精确匹配相关包耗时为：{time5 - time4}")
+
 
 
 logger = logging.getLogger(__name__)
@@ -30,20 +39,17 @@ async def main():
 
     setup_logging()
 
-    # 文件解析器，主要负责解析简历文件，提取文本内容，将pdf转为markdown
+    """"# 文件解析器，主要负责解析简历文件，提取文本内容，将pdf转为markdown
     document_parser = MinerUParser()
 
     # 简历提取器，主要负责从markdown中提取简历信息
     resume_extractor = DeepSeekResumeExtractor()
 
     # 简历验证器，主要负责验证简历信息是否符合要求
-    resume_validator = ResumeValidator()
+    resume_validator = ResumeValidator()"""
 
     # 简历处理服务，主要负责处理简历文件，包括解析、提取、验证等
-    service = ResumeProcessingService(
-        document_parser=document_parser,
-        resume_extractor=resume_extractor,
-    )
+    service = create_resume_processing_service()
 
     result = await service.process(
         r"E:\Project\assistant_for_recruitment\app\services\resume_handle\人力资源培训专员简历_张晓婷.pdf"

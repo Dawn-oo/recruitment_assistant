@@ -11,7 +11,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from .base import DocumentParseResult, DocumentParser
-from app.tools.hash_fun import calculate_file_hash
+from app.tools import calculate_file_hash
 
 
 _ = load_dotenv()

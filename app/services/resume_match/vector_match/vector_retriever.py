@@ -6,12 +6,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 from logging import getLogger
 
-from app.services.job_match.jd_repository import JDRepository
-from app.services.job_match.vector_match.resume_query_builder import (
-    ResumeQueryType,
-    ResumeQueryUnit,
-)
-from app.tools.embeding_assist import BgeM3EmbeddingProvider
+from app.services.resume_match.sql_search.jd_repository import JDRepository
+from app.services.resume_match.vector_match.resume_query_builder import ResumeQueryUnit
+from app.services.resume_match.vector_match.base import ResumeQueryType
+
+from app.tools import BgeM3EmbeddingProvider
 
 logger = getLogger(__name__)
 
@@ -223,3 +222,4 @@ class VectorRetriever:
             distance=float(row["distance"]),
             similarity=float(row["similarity"])
         )
+

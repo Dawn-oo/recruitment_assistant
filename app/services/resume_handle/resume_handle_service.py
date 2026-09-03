@@ -6,12 +6,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.services.resume_handle.resume_extractor.base import ResumeExtractor
-from app.services.resume_handle.resume_extractor.resume_schema import ResumeModel
-
-from app.services.resume_handle.document_parser.base import (
-    DocumentParser,
-    DocumentParseResult)
+from .resume_extractor import ResumeExtractor, ResumeModel
+from .document_parser import DocumentParser,DocumentParseResult
 
 logger = logging.getLogger(__name__)
 
