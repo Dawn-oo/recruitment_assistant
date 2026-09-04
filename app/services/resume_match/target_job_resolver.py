@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from pydantic import BaseModel,ConfigDict,Field,ValidationError
 
 from app.services.resume_match.exact_match.exact_job_matcher import ExactJobMatchResult,ExactMatchType
-from app.services.resume_match.vector_match.job_candidate_aggregator import SemanticJobMatchResult,CandidateAggregationResult
+from app.services.resume_match.vector_match.recall.job_candidate_aggregator import SemanticJobMatchResult,CandidateAggregationResult
 from app.services.resume_match.sql_search.jd_repository import JDRepository
 
 logger = logging.getLogger(__name__)

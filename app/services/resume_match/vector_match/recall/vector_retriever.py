@@ -9,11 +9,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.resume_match.sql_search.jd_repository import JDRepository
-from app.services.resume_match.vector_match.base import (
+from app.services.resume_match.vector_match.recall.base import (
     EmbeddingProvider,
     ResumeQueryType,
 )
-from app.services.resume_match.vector_match.resume_query_builder import ResumeQueryUnit
+from app.services.resume_match.vector_match.recall.resume_query_builder import ResumeQueryUnit
 
 
 logger = logging.getLogger(__name__)

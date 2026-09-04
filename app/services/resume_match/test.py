@@ -14,9 +14,9 @@ from app.tools.database_con import PostgresSSHConfig, PostgresSSHPool
 time2 = time.perf_counter()
 print(f"导入建立数据库连接包耗时为：{time2 - time1}")
 
-from app.services.resume_match.vector_match.resume_query_builder import ResumeQueryBuilder
-from app.services.resume_match.vector_match.vector_retriever import VectorRetriever
-from app.services.resume_match.vector_match.job_candidate_aggregator import CandidateAggregator
+from app.services.resume_match.vector_match.recall.resume_query_builder import ResumeQueryBuilder
+from app.services.resume_match.vector_match.recall.vector_retriever import VectorRetriever
+from app.services.resume_match.vector_match.recall.job_candidate_aggregator import CandidateAggregator
 from app.services.resume_match.sql_search.jd_repository import JDRepository
 time3 = time.perf_counter()
 print(f"导入建立向量匹配相关包耗时为：{time3 - time2}")

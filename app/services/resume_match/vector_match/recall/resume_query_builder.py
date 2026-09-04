@@ -5,7 +5,7 @@ from collections.abc import Iterable, Sequence
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.resume_handle.resume_extractor.resume_schema import ResumeModel
-from app.services.resume_match.vector_match.base import ResumeQueryType
+from app.services.resume_match.vector_match.recall.base import ResumeQueryType
 
 
 class ResumeQueryUnit(BaseModel):

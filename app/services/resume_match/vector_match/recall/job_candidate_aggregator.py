@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.services.resume_match.vector_match.base import ResumeQueryType
-from app.services.resume_match.vector_match.vector_retriever import (
+from app.services.resume_match.vector_match.recall.base import ResumeQueryType
+from app.services.resume_match.vector_match.recall.vector_retriever import (
     QueryRetrievalResult,
     RetrievedChunk,
     VectorRetrievalResult,

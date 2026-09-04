@@ -32,10 +32,10 @@ from app.services.resume_match.exact_match.exact_job_matcher import (
     ExactJobMatchResult,
 )
 from app.services.resume_match.exact_match.job_intent_norm import JobIntentNormalizer, JobIntentNormalizeResult
-from app.services.resume_match.vector_match.resume_query_builder import ResumeQueryBuilder
-from app.services.resume_match.vector_match.vector_retriever import VectorRetriever
+from app.services.resume_match.vector_match.recall.resume_query_builder import ResumeQueryBuilder
+from app.services.resume_match.vector_match.recall.vector_retriever import VectorRetriever
 
-from app.services.resume_match.vector_match.job_candidate_aggregator import (
+from app.services.resume_match.vector_match.recall.job_candidate_aggregator import (
     CandidateAggregationResult,
     CandidateAggregator
 )
