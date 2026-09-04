@@ -38,25 +38,47 @@ class ResumeMatchServiceError(RuntimeError):
 
 
 class ResumeMatchStatus(str, Enum):
-    """整份简历的岗位解析状态。"""
-
     READY = "ready"
+
+    # 已有部分岗位可以进入 Agent，但仍有岗位等待人工确认
+    PARTIALLY_READY = "partially_ready"
+
+    # 当前没有任何可分析岗位，必须等待人工确认
     NEEDS_CONFIRMATION = "needs_confirmation"
+
+    # 人工拒绝已有候选，需要重新描述或重新检索
+    NEEDS_MANUAL_RESOLUTION = "needs_manual_resolution"
+
+    # 无法继续，例如没有岗位意图且没有人工输入
     BLOCKED = "blocked"
 
 
 class TargetMatchSource(str, Enum):
-    """目标岗位最终 JD 的来源。"""
+    EXACT = "申请岗位与 JD 匹配精确"
 
-    EXACT = "exact"
-    SEMANTIC = "semantic"
+    SEMANTIC = "申请岗位与 JD 匹配语义匹配"
 
+    # 人工描述后通过工具重新检索
+    MANUAL_SEARCH = "人工描述后通过工具重新检索"
+
+class ResolutionMethod(str, Enum):
+    UNIQUE_EXACT_MATCH = "唯一精确匹配JD"
+    HUMAN_CONFIRMED = "人工确认JD"
+    HUMAN_SPECIFIED_JD = "人工指定JD"
 
 class TargetMatchStatus(str, Enum):
-    """单个申请岗位的处理状态。"""
-
     RESOLVED = "resolved"
+
+    # 有候选，等待人工选择
     NEEDS_CONFIRMATION = "needs_confirmation"
+
+    # 人工拒绝所有候选，需要重新输入岗位描述
+    NEEDS_MANUAL_RESOLUTION = "needs_manual_resolution"
+
+    # 重新输入描述后正在再次检索
+    RESEARCHING = "researching"
+
+    # 检索后没有任何候选
     NO_CANDIDATE = "no_candidate"
 
 
@@ -85,6 +107,18 @@ class TargetMatchResult(BaseModel):
     candidates: list[MatchCandidate] = Field(default_factory=list)
     selected_jd_id: int | None = None
     requires_human_confirmation: bool = False
+    # 人工拒绝所有候选的原因
+    rejection_reason: str | None = None
+
+    # 人工重新描述的目标岗位要求
+    manual_query: str | None = None
+
+    # 候选集合的版本，重新检索后递增
+    candidate_version: int = Field(default=1, ge=1)
+
+    # 记录被人工拒绝的候选，便于审计和避免重复推荐
+    rejected_candidate_ids: list[int] = Field(default_factory=list)
+
     semantic_result: SemanticTargetMatchingResult | None = None
     warnings: list[str] = Field(default_factory=list)
 
@@ -112,9 +146,13 @@ class ResumeMatchResult(BaseModel):
     targets: list[TargetMatchResult] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
+    analyzable_target_count: int = Field(ge=0)
+    pending_confirmation_count: int = Field(ge=0)
+    manual_resolution_count: int = Field(ge=0)
+
     @property
     def consumable_by_agent(self) -> bool:
-        return self.status == ResumeMatchStatus.READY
+        return self.analyzable_target_count > 0
 
     @property
     def selected_jd_ids(self) -> list[int]:
@@ -125,24 +163,45 @@ class ResumeMatchResult(BaseModel):
         ]
 
     def to_agent_payload(self) -> dict:
-        """只输出最终选定的 JD，不把未选候选暴露给 Agent。"""
-        if not self.consumable_by_agent:
-            raise ResumeMatchServiceError(
-                f"岗位匹配尚不可供 Agent 消费: status={self.status.value}"
+        resolved_targets = [
+            target
+            for target in self.targets
+            if (
+                    target.status == TargetMatchStatus.RESOLVED
+                    and target.selected_jd_id is not None
             )
+        ]
+
+        if not resolved_targets:
+            raise ResumeMatchServiceError(
+                "当前没有已确认的岗位可以进入 Agent"
+            )
+
         return {
             "schema_version": self.schema_version,
-            "status": self.status.value,
+            "match_status": self.status.value,
+            "analysis_scope": "partial" if (
+                    self.status == ResumeMatchStatus.PARTIALLY_READY
+            ) else "complete",
             "selected_targets": [
                 {
                     "target_id": target.target_id,
                     "requested_job_title": target.requested_job_title,
                     "source": target.source.value if target.source else None,
+                    "resolution_method": (
+                        target.resolution_method.value
+                        if target.resolution_method
+                        else None
+                    ),
                     "selected_jd_id": target.selected_jd_id,
                 }
-                for target in self.targets
+                for target in resolved_targets
             ],
-            "warnings": list(self.warnings),
+            "pending_target_ids": [
+                target.target_id
+                for target in self.targets
+                if target.status != TargetMatchStatus.RESOLVED
+            ],
         }
 
 
@@ -217,6 +276,7 @@ class MatchResumeService:
         对应 target 的候选集合。未提交的待确认岗位保持原状态，因此允许前端
         分批确认；所有岗位确认完毕后总体状态恢复为 READY。
         """
+
         known_target_ids = {target.target_id for target in result.targets}
         unknown_target_ids = set(selections) - known_target_ids
         if unknown_target_ids:
@@ -251,6 +311,109 @@ class MatchResumeService:
         return self._build_result(
             exact_result=result.exact_result,
             targets=confirmed_targets,
+            inherited_warnings=result.warnings,
+        )
+
+    def reject_candidates(
+            self,
+            *,
+            result: ResumeMatchResult,
+            target_id: str,
+            reason: str | None = None,
+    ) -> ResumeMatchResult:
+        """拒绝指定目标岗位的当前全部候选 JD。
+
+        该操作只处理处于 NEEDS_CONFIRMATION 状态的岗位。
+
+        拒绝后：
+        1. 当前候选集合被清空；
+        2. 候选 JD ID 被记录到 rejected_candidate_ids；
+        3. selected_jd_id 被清空；
+        4. 岗位进入 NEEDS_MANUAL_RESOLUTION；
+        5. 其他已经 RESOLVED 的岗位不受影响；
+        6. 总体状态由 _build_result() 重新计算。
+        """
+        normalized_target_id = target_id.strip()
+
+        if not normalized_target_id:
+            raise ResumeMatchServiceError("target_id 不能为空")
+
+        normalized_reason = reason.strip() if reason else None
+
+        target_found = False
+        updated_targets: list[TargetMatchResult] = []
+
+        for target in result.targets:
+            if target.target_id != normalized_target_id:
+                updated_targets.append(target)
+                continue
+
+            target_found = True
+
+            if target.status != TargetMatchStatus.NEEDS_CONFIRMATION:
+                raise ResumeMatchServiceError(
+                    f"岗位 {normalized_target_id} 当前不能拒绝候选: "
+                    f"status={target.status.value}"
+                )
+
+            if not target.candidates:
+                raise ResumeMatchServiceError(
+                    f"岗位 {normalized_target_id} 没有可拒绝的候选 JD"
+                )
+
+            current_candidate_ids = [
+                candidate.jd_id
+                for candidate in target.candidates
+            ]
+
+            rejected_candidate_ids = list(
+                dict.fromkeys(
+                    [
+                        *target.rejected_candidate_ids,
+                        *current_candidate_ids,
+                    ]
+                )
+            )
+
+            target_payload = target.model_dump(mode="python")
+
+            target_payload.update(
+                status=TargetMatchStatus.NEEDS_MANUAL_RESOLUTION,
+                candidates=[],
+                selected_jd_id=None,
+                requires_human_confirmation=False,
+                rejection_reason=normalized_reason,
+                rejected_candidate_ids=rejected_candidate_ids,
+                manual_query=None,
+                warnings=self._deduplicate(
+                    [
+                        *target.warnings,
+                        (
+                            "人工已拒绝当前全部候选 JD，"
+                            "需要重新描述目标岗位"
+                        ),
+                    ]
+                ),
+            )
+
+            updated_targets.append(
+                TargetMatchResult.model_validate(target_payload)
+            )
+
+        if not target_found:
+            raise ResumeMatchServiceError(
+                f"没有找到目标岗位: target_id={normalized_target_id}"
+            )
+
+        logger.info(
+            "人工拒绝岗位候选: target_id=%s reason=%s",
+            normalized_target_id,
+            normalized_reason,
+        )
+
+        return self._build_result(
+            exact_result=result.exact_result,
+            targets=updated_targets,
             inherited_warnings=result.warnings,
         )
 
@@ -375,34 +538,77 @@ class MatchResumeService:
         )
 
     def _build_result(
-        self,
-        *,
-        exact_result: ExactJobMatchResult,
-        targets: list[TargetMatchResult],
-        inherited_warnings: Sequence[str] = (),
+            self,
+            *,
+            exact_result: ExactJobMatchResult,
+            targets: list[TargetMatchResult],
+            inherited_warnings: Sequence[str] = (),
     ) -> ResumeMatchResult:
-        if targets and all(
-            target.status == TargetMatchStatus.RESOLVED for target in targets
-        ):
-            status = ResumeMatchStatus.READY
-        elif any(
-            target.status == TargetMatchStatus.NEEDS_CONFIRMATION
-            for target in targets
-        ):
-            status = ResumeMatchStatus.NEEDS_CONFIRMATION
-        else:
-            status = ResumeMatchStatus.BLOCKED
+        status = self._resolve_overall_status(targets)
 
         warnings = self._deduplicate(
-            [*inherited_warnings, *(w for target in targets for w in target.warnings)]
+            [
+                *inherited_warnings,
+                *(
+                    warning
+                    for target in targets
+                    for warning in target.warnings
+                ),
+            ]
         )
+
         return ResumeMatchResult(
             status=status,
             exact_result=exact_result,
             targets=targets,
+            analyzable_target_count=sum(
+                target.status == TargetMatchStatus.RESOLVED
+                for target in targets
+            ),
+            pending_confirmation_count=sum(
+                target.status == TargetMatchStatus.NEEDS_CONFIRMATION
+                for target in targets
+            ),
+            manual_resolution_count=sum(
+                target.status == TargetMatchStatus.NEEDS_MANUAL_RESOLUTION
+                for target in targets
+            ),
             warnings=warnings,
         )
 
     @staticmethod
     def _deduplicate(values: Sequence[str]) -> list[str]:
         return list(dict.fromkeys(value.strip() for value in values if value.strip()))
+
+    @staticmethod
+    def _resolve_overall_status(
+            targets: Sequence[TargetMatchResult],
+    ) -> ResumeMatchStatus:
+        resolved_count = sum(
+            target.status == TargetMatchStatus.RESOLVED
+            for target in targets
+        )
+
+        confirmation_count = sum(
+            target.status == TargetMatchStatus.NEEDS_CONFIRMATION
+            for target in targets
+        )
+
+        manual_resolution_count = sum(
+            target.status == TargetMatchStatus.NEEDS_MANUAL_RESOLUTION
+            for target in targets
+        )
+
+        if targets and resolved_count == len(targets):
+            return ResumeMatchStatus.READY
+
+        if resolved_count > 0:
+            return ResumeMatchStatus.PARTIALLY_READY
+
+        if confirmation_count > 0:
+            return ResumeMatchStatus.NEEDS_CONFIRMATION
+
+        if manual_resolution_count > 0:
+            return ResumeMatchStatus.NEEDS_MANUAL_RESOLUTION
+
+        return ResumeMatchStatus.BLOCKED
