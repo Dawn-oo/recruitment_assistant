@@ -16,6 +16,9 @@ env/
 
 # 日志
 *.log
+*.logs
+logs
+log
 
 # 测试和构建缓存
 .pytest_cache/

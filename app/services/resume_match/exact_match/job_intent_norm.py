@@ -41,10 +41,7 @@ class JobIntentNormalizer:
         r"[/／]+"
     )
 
-    def normalize(
-        self,
-        target_job_title: str | None,
-    ) -> JobIntentNormalizeResult:
+    def normalize(self,target_job_title: str | None) -> JobIntentNormalizeResult:
 
         # =====================================================
         # 1. None / 空字符串

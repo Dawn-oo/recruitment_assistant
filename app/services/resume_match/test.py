@@ -16,7 +16,7 @@ print(f"导入建立数据库连接包耗时为：{time2 - time1}")
 
 from app.services.resume_match.vector_match.resume_query_builder import ResumeQueryBuilder
 from app.services.resume_match.vector_match.vector_retriever import VectorRetriever
-from app.services.resume_match.vector_match.candidate_aggregator import CandidateAggregator
+from app.services.resume_match.vector_match.job_candidate_aggregator import CandidateAggregator
 from app.services.resume_match.sql_search.jd_repository import JDRepository
 time3 = time.perf_counter()
 print(f"导入建立向量匹配相关包耗时为：{time3 - time2}")
@@ -27,10 +27,11 @@ print(f"导入建立向量嵌入相关包耗时为：{time4 - time3}")
 
 from app.services.resume_match.exact_match.exact_job_matcher import ExactJobMatcher
 from app.services.resume_match.exact_match.job_intent_norm import JobIntentNormalizer
-from app.services.resume_match.candidate_selector import CandidateSelector
+from app.services.resume_match.target_job_resolver import CandidateSelector
 time5 = time.perf_counter()
 print(f"导入建立精确匹配相关包耗时为：{time5 - time4}")
 
+from app.services.resume_match.resume_matching_service import JobMatchingService
 
 
 logger = logging.getLogger(__name__)
@@ -159,8 +160,63 @@ async def main():
         #     f.write("}\n")
 
 
+async def main1():
+
+    setup_logging()
+
+    service = create_resume_processing_service()
+
+    resume_model_result = await service.process(
+        r"E:\Project\assistant_for_recruitment\app\services\resume_handle\人力资源培训专员简历_张晓婷.pdf"
+    )
+
+    print("构建岗位意图预处理器")
+    job_intent_normalizer = JobIntentNormalizer()
+
+    print("构建查询构建器,根据简历信息构建查询语句...")
+    query_builder = ResumeQueryBuilder()
+
+    print("构建嵌入模型")
+    embedder = BgeM3EmbeddingProvider()
+
+    config = PostgresSSHConfig.from_env()
+
+    start_time = time.perf_counter()
+    logger.info("数据库连接中...")
+    with PostgresSSHPool(config) as db:
+        end_time = time.perf_counter()
+        logger.info("数据库连接完成,耗时为：latency_ms=%.0f毫秒", (end_time - start_time) * 1000)
+
+        print("构建精确匹配器")
+        jd_rep = JDRepository(db=db)
+        exact_job_matcher = ExactJobMatcher(repository=jd_rep)
+
+        print("构建向量检索器")
+        retriever = VectorRetriever(repository=jd_rep, embedder=embedder)
+
+        print("构建候选岗位聚合器")
+        candidate_aggregator = CandidateAggregator()
+
+        print("构建候选岗位路由选择器")
+        candidate_selector = CandidateSelector(repository=jd_rep)
+
+        print("构建岗位匹配服务")
+        job_matching_service = JobMatchingService(
+            job_intent_normalizer=job_intent_normalizer,
+            exact_matcher=exact_job_matcher,
+            query_builder=query_builder,
+            vector_retriever=retriever,
+            candidate_aggregator=candidate_aggregator,
+            candidate_selector=candidate_selector,
+        )
+
+        result = job_matching_service.match_resume(resume=resume_model_result)
+
+        with open("result2.json", "w", encoding="utf-8") as f:
+            f.write(result.model_dump_json(indent=2, ensure_ascii=False))
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main1())
     end_run_time = time.perf_counter()
     print("运行完成")
     print(f"运行耗时为：{end_run_time - start_run_time}秒")

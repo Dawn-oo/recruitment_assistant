@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from pydantic import BaseModel,ConfigDict,Field,ValidationError
 
 from app.services.resume_match.exact_match.exact_job_matcher import ExactJobMatchResult,ExactMatchType
-from app.services.resume_match.vector_match.candidate_aggregator import SemanticJobMatchResult,CandidateAggregationResult
+from app.services.resume_match.vector_match.job_candidate_aggregator import SemanticJobMatchResult,CandidateAggregationResult
 from app.services.resume_match.sql_search.jd_repository import JDRepository
 
 logger = logging.getLogger(__name__)
@@ -245,8 +245,8 @@ class CandidateSelector:
         result = self._build_agent_context(
             drafts=drafts,
             selection_mode=selection_mode,
-            exact_input_count=len(exact_result.intent_results),
-            semantic_input_count=len(semantic_candidates),
+            exact_input_count=len(exact_result.intent_results) if exact_result is not None else 0,
+            semantic_input_count=len(semantic_candidates) if semantic_result is not None else 0,
             unmatched_requested_titles=unmatched_requested_titles,
             jd_contexts=jd_contexts,
             initial_warnings=hydration_warnings,
