@@ -14,7 +14,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.services.resume_handle.resume_handle_service import ResumeProcessingResult
+from app.services.resume_handle.ResumeHandleService import ResumeProcessingResult
 from app.services.resume_match.exact_match.exact_job_matcher import (
     ExactIntentMatchResult,
     ExactJobMatcher,

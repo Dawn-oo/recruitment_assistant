@@ -1,7 +1,7 @@
 """岗位匹配真实链路测试入口。
 
 流程：本地 PDF -> MinerU -> DeepSeek -> PostgreSQL 精确匹配 ->
-未命中岗位 BGE-M3 向量召回 -> BGE reranker -> 人工确认 -> Agent 输入。
+未命中岗位 BGE-M3-M3 向量召回 -> BGE-M3 reranker -> 人工确认 -> Agent 输入。
 
 在项目根目录运行：
     python -m app.services.resume_match.test --resume "E:/path/resume.pdf"
@@ -26,21 +26,22 @@ from app.core.log_config import setup_logging
 from app.services.resume_handle import create_resume_processing_service
 from app.services.resume_match.exact_match.exact_job_matcher import ExactJobMatcher
 from app.services.resume_match.exact_match.job_intent_norm import JobIntentNormalizer
-from app.services.resume_match.resume_matching_service import (
+from app.services.resume_match.ResumeMatchService import (
     MatchResumeService,
     ResumeMatchResult,
     ResumeMatchStatus,
     TargetMatchStatus,
 )
-from app.services.resume_match.sql_search.jd_repository import JDRepository
+from app.database_search.jd_repository import JDRepository
 from app.services.resume_match.vector_match.recall.job_candidate_aggregator import CandidateAggregator
 from app.services.resume_match.vector_match.recall.resume_query_builder import ResumeQueryBuilder
 from app.services.resume_match.vector_match.recall.vector_retriever import VectorRetriever
-from app.services.resume_match.vector_match.rerank.bge_reranker import BgeReranker
+from app.tools import BgeReranker, PostgresSSHConfig, PostgresSSHPool, BgeM3EmbeddingProvider
 from app.services.resume_match.vector_match.rerank.target_job_reranker import TargetJobReranker
 from app.services.resume_match.vector_match.semantic_matching_service import SemanticTargetMatchingService
-from app.tools.database_con import PostgresSSHConfig, PostgresSSHPool
-from app.tools.embeding_assist import BgeM3EmbeddingProvider
+from app.services.middle_layer.agent_input_assembler import AgentInputAssembler
+
+
 print("应用库加载完成")
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ _ = load_dotenv()
 
 
 class LazyBgeM3EmbeddingProvider:
-    """首次真正请求向量时才加载 BGE-M3，避免精确命中时占用模型资源。"""
+    """首次真正请求向量时才加载 BGE-M3-M3，避免精确命中时占用模型资源。"""
 
     dimension = BgeM3EmbeddingProvider.DIMENSION
 
@@ -61,7 +62,7 @@ class LazyBgeM3EmbeddingProvider:
 
     def embed_queries(self, texts: Sequence[str]) -> list[list[float]]:
         if self._provider is None:
-            logger.info("精确匹配存在未命中岗位，开始加载本地 BGE-M3")
+            logger.info("精确匹配存在未命中岗位，开始加载本地 BGE-M3-M3")
             self._provider = BgeM3EmbeddingProvider(**self._model_kwargs)
         return self._provider.embed_queries(texts)
 
@@ -80,13 +81,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--embedding-model",
         type=Path,
-        help="本地 BGE-M3 目录；省略时使用 BGE_MODEL_PATH",
+        help="本地 BGE-M3-M3 目录；省略时使用 BGE_MODEL_PATH",
         default=os.getenv("BGE_MODEL_PATH")
     )
     parser.add_argument(
         "--reranker-model",
         type=Path,
-        help="本地 BGE reranker 目录；省略时使用 BGE_RERANKER_MODEL_PATH",
+        help="本地 BGE-M3 reranker 目录；省略时使用 BGE_RERANKER_MODEL_PATH",
         default=os.getenv("BGE_RERANKER_MODEL_PATH")
     )
     parser.add_argument("--device", default='cpu', help="cpu、cuda 或 cuda:0；省略时使用环境变量")
@@ -183,7 +184,7 @@ def ask_for_confirmations(result: ResumeMatchResult) -> dict[str, int]:
 def create_embedder(args: argparse.Namespace) -> LazyBgeM3EmbeddingProvider:
     kwargs = {"batch_size": args.embedding_batch_size}
     if args.embedding_model is not None:
-        kwargs["model_path"] = checked_path(args.embedding_model, "BGE-M3 模型目录")
+        kwargs["model_path"] = checked_path(args.embedding_model, "BGE-M3-M3 模型目录")
     if args.device is not None:
         kwargs["device"] = args.device
     return LazyBgeM3EmbeddingProvider(**kwargs)
@@ -198,10 +199,10 @@ async def run(args: argparse.Namespace) -> None:
     resume_result = await resume_processing_service.process(resume_path)
     print(f"简历申请岗位: {resume_result.resume.basic_info.target_job_title!r}")
 
-    logger.info("第二阶段：准备本地 BGE 模型（按需加载）")
+    logger.info("第二阶段：准备本地 BGE-M3 模型（按需加载）")
     embedder = create_embedder(args)
     reranker_model = (
-        checked_path(args.reranker_model, "BGE reranker 模型目录")
+        checked_path(args.reranker_model, "BGE-M3 reranker 模型目录")
         if args.reranker_model is not None
         else None
     )
@@ -257,9 +258,16 @@ async def run(args: argparse.Namespace) -> None:
                 print(result.to_agent_payload())
             else:
                 print("\n当前结果不能进入 Agent。")
+
+            logger.info("第五阶段：构造 Agent 输入")
+            assembler = AgentInputAssembler(repository)
+            agent_input = assembler.build(resume=resume_result.resume, match_result=result)
+            print(agent_input.model_dump_json(ensure_ascii=False, indent=2))
+
     finally:
         reranker.close()
         logger.info("完整链路结束，总耗时 %.2f 秒", time.perf_counter() - started_at)
+
 
 
 def main() -> None:

@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 class RerankerError(RuntimeError):
-    """BGE 重排模型加载或推理失败。"""
+    """BGE-M3 重排模型加载或推理失败。"""
 
 
 class BgeReranker:
-    """基于 ``FlagEmbedding.FlagReranker`` 的本地 BGE 重排适配器。
+    """基于 ``FlagEmbedding.FlagReranker`` 的本地 BGE-M3 重排适配器。
 
     默认模型为 ``BAAI/bge-reranker-v2-m3``。建议生产环境将模型提前下载
     到本地目录，并通过 ``BGE_RERANKER_MODEL_PATH`` 指向该目录。
@@ -111,7 +111,7 @@ class BgeReranker:
                 )
         except Exception as exc:
             raise RerankerError(
-                "BGE 重排推理失败: "
+                "BGE-M3 重排推理失败: "
                 f"model={self._model_path}, pair_count={len(normalized_pairs)}"
             ) from exc
 
@@ -166,7 +166,7 @@ class BgeReranker:
                 )
             except Exception as exc:
                 raise RerankerError(
-                    "BGE 重排模型加载失败: "
+                    "BGE-M3 重排模型加载失败: "
                     f"model={self._model_path}, device={self._device or 'auto'}"
                 ) from exc
 
@@ -218,17 +218,17 @@ class BgeReranker:
             try:
                 scores = [float(score) for score in raw_scores]
             except (TypeError, ValueError) as exc:
-                raise RerankerError("BGE 重排模型返回了无法解析的分数") from exc
+                raise RerankerError("BGE-M3 重排模型返回了无法解析的分数") from exc
 
         if len(scores) != expected_count:
             raise RerankerError(
-                "BGE 重排分数数量与输入文本对数量不一致: "
+                "BGE-M3 重排分数数量与输入文本对数量不一致: "
                 f"expected={expected_count}, actual={len(scores)}"
             )
         for index, score in enumerate(scores):
             if not math.isfinite(score) or not 0.0 <= score <= 1.0:
                 raise RerankerError(
-                    "BGE 归一化分数必须位于 [0, 1]: "
+                    "BGE-M3 归一化分数必须位于 [0, 1]: "
                     f"index={index}, score={score}"
                 )
         return scores

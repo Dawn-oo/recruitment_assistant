@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class SemanticTargetMatchingResult(BaseModel):
-    """单个未精确命中岗位从多 Query 召回到 BGE 精排的完整结果。"""
+    """单个未精确命中岗位从多 Query 召回到 BGE-M3 精排的完整结果。"""
 
     model_config = ConfigDict(strict=True, extra="forbid")
 
@@ -42,7 +42,7 @@ class SemanticTargetMatchingService:
     """供主流程调用的单目标岗位语义兜底服务。
 
     主流程应当只对 ``ExactJobMatcher`` 未命中的岗位逐个调用本服务；已经
-    精确命中的岗位不需要执行向量召回和 BGE 精排。
+    精确命中的岗位不需要执行向量召回和 BGE-M3 精排。
     """
 
     def __init__(
@@ -82,7 +82,7 @@ class SemanticTargetMatchingService:
         recall_top_n: int | None = None,
         rerank_top_n: int | None = None,
     ) -> SemanticTargetMatchingResult:
-        """执行多 Query 粗召回、JD 聚合和 BGE 精排。"""
+        """执行多 Query 粗召回、JD 聚合和 BGE-M3 精排。"""
         actual_top_k = self._resolve_positive(
             top_k_per_query,
             self._default_top_k_per_query,

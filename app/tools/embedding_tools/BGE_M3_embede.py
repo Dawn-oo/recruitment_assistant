@@ -16,9 +16,9 @@ class EmbeddingError(RuntimeError):
 
 class BgeM3EmbeddingProvider:
     """
-    基于本地 BGE-M3 模型的稠密向量嵌入实现。
+    基于本地 BGE-M3-M3 模型的稠密向量嵌入实现。
 
-    当前只使用 BGE-M3 的 dense_vecs，
+    当前只使用 BGE-M3-M3 的 dense_vecs，
     不计算 sparse 和 ColBERT 向量。
     """
 
@@ -70,9 +70,9 @@ class BgeM3EmbeddingProvider:
                 return_colbert_vecs=False,
             )
         except Exception as exc:
-            raise EmbeddingError(f"BGE-M3 文本嵌入失败，文本数量={len(normalized_texts)}") from exc
+            raise EmbeddingError(f"BGE-M3-M3 文本嵌入失败，文本数量={len(normalized_texts)}") from exc
 
-        if "dense_vecs" not in outputs:raise EmbeddingError("BGE-M3 返回结果中不存在 dense_vecs")
+        if "dense_vecs" not in outputs:raise EmbeddingError("BGE-M3-M3 返回结果中不存在 dense_vecs")
 
         vectors = np.asarray(outputs["dense_vecs"],dtype=np.float32)
 

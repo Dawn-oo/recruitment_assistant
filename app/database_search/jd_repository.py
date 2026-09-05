@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from typing import Any, TypeAlias
 from logging import Logger
 
-from app.tools.database_con import PostgresSSHPool,get_default_db
+from app.tools.database_connection.ssh_pgsql_connect import PostgresSSHPool,get_default_db
 from app.services.resume_match.exact_match.job_alias import STANDARD_JOB_TITLES
 
 JDRow: TypeAlias = dict[str, Any]
@@ -27,7 +27,7 @@ class JDRepository:
     JD_TABLE = "job_descriptions"
     CHUNK_TABLE = "jd_chunks"
 
-    # 当前项目 BGE-M3 embedding 维度
+    # 当前项目 BGE-M3-M3 embedding 维度
     EMBEDDING_DIM = 1024
 
     def __init__(self,db: PostgresSSHPool | None = None,) -> None:

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.resume_match.exact_match.job_alias import JOB_TITLE_ALIASES
 from app.services.resume_match.exact_match.job_intent_norm import JobIntentNormalizeResult
-from app.services.resume_match.sql_search.jd_repository import JDRepository
+from app.database_search.jd_repository import JDRepository
 
 class ExactMatchType(str, Enum):
     """

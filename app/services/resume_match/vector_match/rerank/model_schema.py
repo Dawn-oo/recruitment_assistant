@@ -47,7 +47,7 @@ class ResumeSupportTypeScore(BaseModel):
 
 
 class TargetJobRerankCandidate(BaseModel):
-    """一个粗召回 JD 经过 BGE 精排后的三分数结果。"""
+    """一个粗召回 JD 经过 BGE-M3 精排后的三分数结果。"""
 
     model_config = ConfigDict(strict=True, extra="forbid")
 
@@ -104,7 +104,7 @@ class TargetJobRerankConfig(BaseModel):
     resume_support_weight: float = Field(default=0.30, ge=0.0, le=1.0)
     recall_weight: float = Field(default=0.10, ge=0.0, le=1.0)
 
-    # BGE sigmoid 分数不是余弦相似度，未完成业务样本校准前不启用绝对阈值。
+    # BGE-M3 sigmoid 分数不是余弦相似度，未完成业务样本校准前不启用绝对阈值。
     minimum_title_similarity: float | None = Field(
         default=None,
         ge=0.0,

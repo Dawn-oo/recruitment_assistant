@@ -100,7 +100,7 @@ def create_connection(
 
 def load_embedding_model() -> BGEM3FlagModel:
     """
-    从本地目录加载 BGE-M3。
+    从本地目录加载 BGE-M3-M3。
     """
 
     if not MODEL_PATH:
@@ -108,7 +108,7 @@ def load_embedding_model() -> BGEM3FlagModel:
 
     if not os.path.isdir(MODEL_PATH):
         raise FileNotFoundError(
-            f"BGE-M3 模型目录不存在: {MODEL_PATH}"
+            f"BGE-M3-M3 模型目录不存在: {MODEL_PATH}"
         )
 
     # 如果没有显式设置设备，自动检测
@@ -165,7 +165,7 @@ def fetch_unembedded_chunks(
 
 
 # =========================
-# BGE-M3 Embedding
+# BGE-M3-M3 Embedding
 # =========================
 
 def encode_chunks(
@@ -278,10 +278,10 @@ def run_embedding_pipeline():
         conn = create_connection(tunnel)
         print("PostgreSQL 连接成功")
 
-        # 3. 加载 BGE-M3
-        print("正在加载 BGE-M3...")
+        # 3. 加载 BGE-M3-M3
+        print("正在加载 BGE-M3-M3...")
         model = load_embedding_model()
-        print("BGE-M3 加载成功")
+        print("BGE-M3-M3 加载成功")
         # 4. 后面执行你的 embedding pipeline
         print("开始执行 embedding pipeline...")
 

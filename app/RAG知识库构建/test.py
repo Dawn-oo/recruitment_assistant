@@ -26,7 +26,7 @@ DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 
-model = BGEM3FlagModel(r'/app/RAG知识库构建/embeding_models/bge-m3',
+model = BGEM3FlagModel(r'/app/RAG知识库构建/embedding_tools/bge-m3',
                        use_fp16=False,
                        devices=["cpu"])
 # Setting use_fp16 to True speeds up computation with a slight performance degradation

@@ -60,16 +60,16 @@ class _ScoredRequest:
 
 
 class TargetJobReranker:
-    """对 CandidateAggregator 的粗召回 JD 执行 BGE 精排。
+    """对 CandidateAggregator 的粗召回 JD 执行 BGE-M3 精排。
 
     分数职责：
 
     * ``recall_score``：现有 ``aggregate_score``，只保留为弱召回信号；
-    * ``title_similarity``：申请岗位名称与公司岗位名称的 BGE 相关分；
+    * ``title_similarity``：申请岗位名称与公司岗位名称的 BGE-M3 相关分；
     * ``resume_support_score``：不含纯标题 Query 的简历事实与 JD 分段相关分；
     * ``resolution_score``：三种信号的加权和，只用于候选岗位排序。
 
-    BGE reranker 的 sigmoid 分数是相关性分数，不是已经校准的概率。
+    BGE-M3 reranker 的 sigmoid 分数是相关性分数，不是已经校准的概率。
     """
 
     def __init__(
@@ -92,7 +92,7 @@ class TargetJobReranker:
         aggregation_result: CandidateAggregationResult,
         top_n: int | None = None,
     ) -> TargetJobRerankResult:
-        """加载粗召回 JD、批量执行 BGE pair 打分并生成待确认结果。"""
+        """加载粗召回 JD、批量执行 BGE-M3 pair 打分并生成待确认结果。"""
         actual_top_n = self._config.rerank_top_n if top_n is None else top_n
         if actual_top_n <= 0:
             raise TargetJobRerankError("top_n 必须大于0")
@@ -242,7 +242,7 @@ class TargetJobReranker:
                 )
                 # 支持度查询只保留简历原始事实。Query 类型已经作为结构化
                 # 元数据参与聚合，再添加“候选人工作经历”等模板词反而会
-                # 稀释 BGE 对事实内容的相关性判断。
+                # 稀释 BGE-M3 对事实内容的相关性判断。
                 query_text = query.resume_evidence_text
                 for passage in passages:
                     requests.append(
@@ -342,7 +342,7 @@ class TargetJobReranker:
         list[ResumeSupportTypeScore],
         list[ResumeSupportEvidence],
     ]:
-        # 同一简历 Query 对同一 JD 的多个分段只保留最高 BGE 分数。
+        # 同一简历 Query 对同一 JD 的多个分段只保留最高 BGE-M3 分数。
         best_by_query: dict[str, _ScoredRequest] = {}
         for item in scored_requests:
             query = item.request.query

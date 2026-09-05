@@ -38,7 +38,7 @@ DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 
-TOKENIZER_PATH = r"/app/RAG知识库构建/embeding_models/bge-m3"
+TOKENIZER_PATH = r"/app/RAG知识库构建/embedding_tools/bge-m3"
 
 
 # ---------------- Chunk策略 ----------------

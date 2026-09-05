@@ -26,7 +26,7 @@ class RerankJDDocument:
 
 class JDTextBuilder:
 
-    """把结构化 JD 数据库记录构造成 BGE reranker 文本。
+    """把结构化 JD 数据库记录构造成 BGE-M3 reranker 文本。
 
     支持度阶段不把整份JD粗暴拼成一个超长 passage，而是按资格要求、
     岗位职责和胜任能力分段。业务层会对同一简历 Query 取最佳分段得分。

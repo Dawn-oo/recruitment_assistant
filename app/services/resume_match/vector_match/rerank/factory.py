@@ -16,10 +16,10 @@ from app.services.resume_match.vector_match.recall.resume_query_builder import (
     ResumeQueryBuilder,
 )
 from app.services.resume_match.vector_match.recall.vector_retriever import VectorRetriever
-from app.services.resume_match.vector_match.rerank.bge_reranker import BgeReranker
+from app.tools.rerank_tools.BGE_M3 import BgeReranker
 
 if TYPE_CHECKING:
-    from app.services.resume_match.sql_search.jd_repository import JDRepository
+    from app.database_search.jd_repository import JDRepository
 
 
 def create_semantic_target_matching_service(
