@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from app.services.resume_match.vector_match.rerank.model_schema import TargetJobRerankConfig
-from app.services.resume_match.vector_match.semantic_matching_service import (
+from app.services.resume_match.vector_match.SemanticMatchingService import (
     SemanticTargetMatchingService,
 )
 from app.services.resume_match.vector_match.rerank.target_job_reranker import TargetJobReranker
@@ -16,7 +16,7 @@ from app.services.resume_match.vector_match.recall.resume_query_builder import (
     ResumeQueryBuilder,
 )
 from app.services.resume_match.vector_match.recall.vector_retriever import VectorRetriever
-from app.tools.rerank_tools.BGE_M3 import BgeReranker
+from app.tools.rerank_tools.BGE_M3_rerank import BgeReranker
 
 if TYPE_CHECKING:
     from app.database_search.jd_repository import JDRepository

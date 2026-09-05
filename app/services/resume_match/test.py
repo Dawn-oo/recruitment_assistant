@@ -38,7 +38,7 @@ from app.services.resume_match.vector_match.recall.resume_query_builder import R
 from app.services.resume_match.vector_match.recall.vector_retriever import VectorRetriever
 from app.tools import BgeReranker, PostgresSSHConfig, PostgresSSHPool, BgeM3EmbeddingProvider
 from app.services.resume_match.vector_match.rerank.target_job_reranker import TargetJobReranker
-from app.services.resume_match.vector_match.semantic_matching_service import SemanticTargetMatchingService
+from app.services.resume_match.vector_match.SemanticMatchingService import SemanticTargetMatchingService
 from app.services.middle_layer.agent_input_assembler import AgentInputAssembler
 
 

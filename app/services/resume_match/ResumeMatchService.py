@@ -24,7 +24,7 @@ from app.services.resume_match.exact_match.job_intent_norm import (
     JobIntentNormalizer,
     JobIntentNormalizeResult,
 )
-from app.services.resume_match.vector_match.semantic_matching_service import (
+from app.services.resume_match.vector_match.SemanticMatchingService import (
     SemanticTargetMatchingResult,
     SemanticTargetMatchingService,
 )
@@ -119,7 +119,10 @@ class TargetMatchResult(BaseModel):
     # 记录被人工拒绝的候选，便于审计和避免重复推荐
     rejected_candidate_ids: list[int] = Field(default_factory=list)
 
+    resolution_method: ResolutionMethod | None = None
+
     semantic_result: SemanticTargetMatchingResult | None = None
+
     warnings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -305,6 +308,7 @@ class MatchResumeService:
                 status=TargetMatchStatus.RESOLVED,
                 selected_jd_id=selected_jd_id,
                 requires_human_confirmation=False,
+                resolution_method=ResolutionMethod.HUMAN_CONFIRMED,
             )
             confirmed_targets.append(TargetMatchResult.model_validate(target_payload))
 
@@ -396,14 +400,10 @@ class MatchResumeService:
                 ),
             )
 
-            updated_targets.append(
-                TargetMatchResult.model_validate(target_payload)
-            )
+            updated_targets.append(TargetMatchResult.model_validate(target_payload))
 
         if not target_found:
-            raise ResumeMatchServiceError(
-                f"没有找到目标岗位: target_id={normalized_target_id}"
-            )
+            raise ResumeMatchServiceError(f"没有找到目标岗位: target_id={normalized_target_id}")
 
         logger.info(
             "人工拒绝岗位候选: target_id=%s reason=%s",
@@ -446,6 +446,7 @@ class MatchResumeService:
                 source=TargetMatchSource.EXACT,
                 candidates=exact_candidates,
                 selected_jd_id=exact_candidates[0].jd_id,
+                resolution_method=ResolutionMethod.UNIQUE_EXACT_MATCH,
             )
 
         if len(exact_candidates) > 1:
@@ -457,6 +458,7 @@ class MatchResumeService:
                 candidates=exact_candidates,
                 requires_human_confirmation=True,
                 warnings=["同名岗位匹配到多个 JD，请人工选择"],
+                resolution_method=ResolutionMethod.HUMAN_CONFIRMED,
             )
 
         return self._run_semantic_fallback(
