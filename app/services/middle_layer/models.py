@@ -1,10 +1,3 @@
-"""Agent 分析阶段的最小标准输入模型。
-
-该模型只描述 Agent 真正需要的业务事实，不承载解析文档、精确匹配详情、
-向量召回、聚合、重排候选和人工复核过程。简历只保存一次；JD 按 ``jd_id``
-只保存一次；申请岗位通过 ``AgentTargetMatch`` 引用最终 JD，从结构上避免重复。
-"""
-
 from __future__ import annotations
 
 from enum import Enum
@@ -68,7 +61,7 @@ class AgentLanguage(_AgentInputModel):
 
 
 class AgentResumeContent(_AgentInputModel):
-    """从 ResumeModel 提取的简历业务内容，不包含原文证据和联系方式。"""
+    """从ResumeModel提取的简历业务内容，不包含原文证据和联系方式。"""
 
     candidate_name: str | None = None
     location: str | None = None
@@ -132,10 +125,10 @@ class AgentAnalysisInput(_AgentInputModel):
     # 必须包含结构化简历内容，而且整份输入只保存一次。
     resume: AgentResumeContent
 
-    # 只包含已经唯一确定或人工确认的 JD，并按 jd_id 去重。
+    # 只包含已经唯一确定或人工确认的JD，并按jd_id去重。
     matched_jds: list[AgentJobDescription] = Field(min_length=1)
 
-    # 多个申请岗位可以引用同一份 matched_jds，避免复制完整 JD。
+    # 多个申请岗位可以引用同一份matched_jds，避免复制完整 JD。
     target_matches: list[AgentTargetMatch] = Field(min_length=1)
 
     @model_validator(mode="after")

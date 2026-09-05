@@ -1,8 +1,6 @@
-"""简历申请岗位匹配编排服务。
-
-精确匹配是主路径，语义匹配只处理精确匹配未命中的岗位。任何语义候选以及
-同名多 JD 都必须经过人工确认；只有全部申请岗位均得到唯一 JD 后，结果才可
-进入 Agent。
+"""
+简历申请岗位匹配编排服务。
+精确匹配是主路径，语义匹配只处理精确匹配未命中的岗位。任何语义候选以及同名多JD都必须经过人工确认；只有全部申请岗位均得到唯一JD后，结果才可进入Agent。
 """
 
 from __future__ import annotations
@@ -67,6 +65,7 @@ class ResolutionMethod(str, Enum):
     HUMAN_SPECIFIED_JD = "人工指定JD"
 
 class TargetMatchStatus(str, Enum):
+    """申请岗位匹配状态。"""
     RESOLVED = "resolved"
 
     # 有候选，等待人工选择

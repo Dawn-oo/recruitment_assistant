@@ -43,6 +43,7 @@ class JDContextRepository(Protocol):
 
 
 class AgentInputAssembler:
+
     """从过程模型中提取最小、去重且可供 Agent 消费的业务事实。"""
 
     def __init__(self, repository: JDContextRepository) -> None:
@@ -60,9 +61,7 @@ class AgentInputAssembler:
             if self._is_resolved(target)
         ]
         if not resolved_targets:
-            raise AgentInputAssemblyError(
-                "当前匹配结果中没有已确定的岗位，不能构造 Agent 输入"
-            )
+            raise AgentInputAssemblyError("当前匹配结果中没有已确定的岗位，不能构造 Agent 输入")
 
         selected_jd_ids = list(
             dict.fromkeys(
@@ -71,6 +70,7 @@ class AgentInputAssembler:
                 if target.selected_jd_id is not None
             )
         )
+
         rows = self._load_jd_rows(selected_jd_ids)
         matched_jds = [self._build_jd(rows[jd_id]) for jd_id in selected_jd_ids]
 
@@ -121,6 +121,7 @@ class AgentInputAssembler:
         return rows_by_id
 
     def _build_resume(self, resume: ResumeModel) -> AgentResumeContent:
+        """从 ResumeModel 提取的简历业务内容，不包含原文证据和联系方式。"""
         basic = resume.basic_info
         knowledge = resume.knowledge_and_experience
         other = resume.other_info
