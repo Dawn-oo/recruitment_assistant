@@ -62,7 +62,7 @@ class LazyBgeM3EmbeddingProvider:
 
     def embed_queries(self, texts: Sequence[str]) -> list[list[float]]:
         if self._provider is None:
-            logger.info("精确匹配存在未命中岗位，开始加载本地 BGE-M3-M3")
+            logger.info("精确匹配存在未命中岗位，开始加载本地 BGE-M3-embedding 模型")
             self._provider = BgeM3EmbeddingProvider(**self._model_kwargs)
         return self._provider.embed_queries(texts)
 
@@ -184,7 +184,7 @@ def ask_for_confirmations(result: ResumeMatchResult) -> dict[str, int]:
 def create_embedder(args: argparse.Namespace) -> LazyBgeM3EmbeddingProvider:
     kwargs = {"batch_size": args.embedding_batch_size}
     if args.embedding_model is not None:
-        kwargs["model_path"] = checked_path(args.embedding_model, "BGE-M3-M3 模型目录")
+        kwargs["model_path"] = checked_path(args.embedding_model, "BGE-M3-embedding 模型目录")
     if args.device is not None:
         kwargs["device"] = args.device
     return LazyBgeM3EmbeddingProvider(**kwargs)
@@ -199,10 +199,10 @@ async def run(args: argparse.Namespace) -> None:
     resume_result = await resume_processing_service.process(resume_path)
     print(f"简历申请岗位: {resume_result.resume.basic_info.target_job_title!r}")
 
-    logger.info("第二阶段：准备本地 BGE-M3 模型（按需加载）")
+    logger.info("第二阶段：准备本地 BGE-M3-embedding 模型（按需加载）")
     embedder = create_embedder(args)
     reranker_model = (
-        checked_path(args.reranker_model, "BGE-M3 reranker 模型目录")
+        checked_path(args.reranker_model, "BGE-M3-rerank 模型目录")
         if args.reranker_model is not None
         else None
     )

@@ -16,10 +16,10 @@ from typing import Any, Literal, Protocol
 from typing_extensions import TypedDict
 
 from app.services.middle_layer.models import AgentAnalysisInput
-from app.services.recruitment_agent.llm_client import AgentLLMError
-from app.services.recruitment_agent.output_schema import JobAnalysis
-from app.services.recruitment_agent.prompts import validate_scoring_rules
-from app.services.recruitment_agent.state import RecruitmentAgentState
+from app.services.recruitment_agent.agent.llm_client import AgentLLMError
+from app.services.recruitment_agent.schema.output_schema import JobAnalysis
+from app.services.recruitment_agent.agent.prompts import validate_scoring_rules
+from app.services.recruitment_agent.agent.state import RecruitmentAgentState
 
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 class RecruitmentGraphState(TypedDict, total=False):
     # 新任务仅传入 agent_input.model_dump(mode="json")。
-    # 输入校验后清空此字段，标准输入只保留在 execution.agent_input 中。
+    # 输入校验后清空此字段，标准输入只保留在execution.agent_input 中。
     agent_input: dict[str, Any] | None
     execution: dict[str, Any]
     current_jd_id: int | None
@@ -38,7 +38,7 @@ class RecruitmentGraphState(TypedDict, total=False):
 
 
 class JobAnalyzer(Protocol):
-    """RecruitmentLLMClient 已实现此接口；测试可注入不访问 API 的实现。"""
+    """RecruitmentLLMClient 已实现此接口；测试可注入不访问API的实现。"""
 
     async def analyze_job(self, agent_input: AgentAnalysisInput, *, jd_id: int) -> JobAnalysis:
         ...
@@ -46,27 +46,24 @@ class JobAnalyzer(Protocol):
 
 def read_execution(state: RecruitmentGraphState) -> RecruitmentAgentState:
     """JSON 校验模式可正确恢复严格模型中的枚举、时间与整数 JD 字典键。"""
-    return RecruitmentAgentState.model_validate_json(
-        json.dumps(state["execution"], ensure_ascii=False, allow_nan=False)
-    )
+    return RecruitmentAgentState.model_validate_json(json.dumps(state["execution"], ensure_ascii=False, allow_nan=False))
 
 
 class RecruitmentNodes:
     """只持有调用依赖和配置；候选人数据全部位于图状态，支持不同任务复用节点。"""
 
-    def __init__(
-        self, llm: JobAnalyzer, *, max_retries: int = 2,
-        retry_base_delay: float = 1.0, retry_max_delay: float = 30.0,
-    ) -> None:
+    def __init__(self, llm: JobAnalyzer, *, max_retries: int = 2,retry_base_delay: float = 1.0, retry_max_delay: float = 30.0) -> None:
+
         if type(max_retries) is not int or max_retries < 0:
-            raise ValueError("max_retries 必须是非负整数")
+            raise ValueError("max_retries必须是非负整数")
         for value in (retry_base_delay, retry_max_delay):
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError("重试等待时间必须是非负有限数值")
             if not math.isfinite(value) or value < 0:
                 raise ValueError("重试等待时间必须是非负有限数值")
         if retry_base_delay > retry_max_delay:
-            raise ValueError("retry_base_delay 不能超过 retry_max_delay")
+            raise ValueError("retry_base_delay不能超过retry_max_delay")
+
         self.llm = llm
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay

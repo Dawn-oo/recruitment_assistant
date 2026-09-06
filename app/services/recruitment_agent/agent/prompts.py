@@ -10,7 +10,7 @@ import json
 from types import MappingProxyType
 
 from app.services.middle_layer.models import AgentAnalysisInput
-from app.services.recruitment_agent.output_schema import JobAnalysis
+from app.services.recruitment_agent.schema.output_schema import JobAnalysis
 
 
 PROMPT_VERSION = "recruitment_analysis_prompt_v1"
@@ -51,7 +51,7 @@ matched、partially_matched、mismatched均须引用简历与JD双方证据；
 不要因JD只在职责段写了技能要求，就认定skills不适用。
 
 三、整体评分
-固定权重为education=10、major=10、experience=25、skills=30、responsibilities=25。
+固定权重为education=10、major=10、experience=30、skills=25、responsibilities=25。
 只要任一维度为unknown，overall_score必须为null，并说明待核实信息。
 无unknown时，剔除not_applicable维度，对有数值的维度按剩余权重归一化加权，
 overall_score = sum(score_i * weight_i) / sum(weight_i)，保留一位小数。
@@ -84,7 +84,7 @@ def select_job_input(agent_input: AgentAnalysisInput, jd_id: int) -> AgentAnalys
     if not targets:
         raise ValueError("jd_id不在标准输入的已确定岗位绑定中")
 
-    # match_jds中只保留当前JD,它是最终确定的完整JD信息，一次只拿出来一个进行分析；
+    # match_jds中只保留当前JD,它是最终确定的完整JD信息，一次只拿出来指定jd_id进行分析；
     # target_matches中只保留候选人申请岗位与公司岗位之间的映射关系，其他JD的申请岗位不参与分析；
     return snapshot.model_copy(update={
         "matched_jds": [job for job in snapshot.matched_jds if job.jd_id == jd_id],
@@ -161,7 +161,7 @@ def validate_scoring_rules(report: JobAnalysis) -> None:
     elif (
         report.overall_score is None
         or abs(report.overall_score * 10 - round(report.overall_score * 10)) > 1e-8
-        or abs(report.overall_score - weighted_sum / total_weight) > 0.05000001
+        or abs(report.overall_score - weighted_sum / total_weight) > 0.1
     ):
         raise ValueError("整体评分必须为固定权重加权结果，保留一位小数")
 

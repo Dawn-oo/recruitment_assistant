@@ -27,7 +27,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from app.services.recruitment_agent.nodes import (
+from app.services.recruitment_agent.agent.nodes import (
     JobAnalyzer, RecruitmentGraphState, RecruitmentNodes, read_execution,
 )
 

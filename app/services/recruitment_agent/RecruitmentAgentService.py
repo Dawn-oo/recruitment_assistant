@@ -33,10 +33,10 @@ from uuid import uuid4
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from app.services.middle_layer.models import AgentAnalysisInput
-from app.services.recruitment_agent.graph import build_recruitment_graph, read_execution
-from app.services.recruitment_agent.nodes import JobAnalyzer
-from app.services.recruitment_agent.output_schema import AgentAnalysisOutput
-from app.services.recruitment_agent.state import RecruitmentAgentState
+from app.services.recruitment_agent.agent.graph import build_recruitment_graph, read_execution
+from app.services.recruitment_agent.agent.nodes import JobAnalyzer
+from app.services.recruitment_agent.schema.output_schema import AgentAnalysisOutput
+from app.services.recruitment_agent.agent.state import RecruitmentAgentState
 
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
-"""一份简历的 Agent 执行状态；每个已绑定 JD 独立分析、失败和重试。
+"""一份简历的 Agent 执行状态；每个已绑定JD独立分析、失败和重试。
 
-标准输入只保存一次，单岗报告复用 output_schema.JobAnalysis。
+标准输入只保存一次，单岗报告复用output_schema.JobAnalysis。
 retry_count 不包含首次调用：max_retries=2 表示每个 JD 最多执行 3 次。
 analysis_scope 是申请岗位的覆盖范围，不表示本轮执行是否成功。
 
@@ -26,7 +26,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.services.middle_layer.models import AgentAnalysisInput
-from app.services.recruitment_agent.output_schema import AgentAnalysisOutput, JobAnalysis
+from app.services.recruitment_agent.schema.output_schema import AgentAnalysisOutput, JobAnalysis
 
 
 NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -38,18 +38,19 @@ class _StateModel(BaseModel):
 
 
 class AgentExecutionError(_StateModel):
+
     """一次执行的错误记录；message 应由服务层脱敏，避免保存请求密钥等信息。"""
 
     stage: NonEmptyText = Field(description="失败阶段，例如 llm_call/output_parse/output_validate")
     error_type: NonEmptyText = Field(description="异常类型或稳定的业务错误码")
     message: NonEmptyText
-    attempt_number: int = Field(ge=1, description="首次执行为 1，随后为 retry_count + 1")
+    attempt_number: int = Field(ge=1, description="首次执行为1，随后为 retry_count + 1")
     retryable: bool = Field(description="由服务层判断错误是否值得重试，不代表还有重试预算")
     occurred_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class JDAnalysisState(_StateModel):
-    """单个 JD 的执行记录；它不是候选人的录用/淘汰状态。"""
+    """单个JD的执行记录；它不是候选人的录用/淘汰状态。"""
 
     jd_id: int
     status: JobAnalysisStatus = "pending"
@@ -63,35 +64,39 @@ class JDAnalysisState(_StateModel):
 
     @model_validator(mode="after")
     def validate_execution(self) -> JDAnalysisState:
+
         if (self.status == "succeeded") != (self.report is not None):
-            raise ValueError("仅 succeeded 状态必须且可以持有 report")
+            raise ValueError("仅succeeded状态必须且可以持有report")
+
         if self.report is not None and self.report.jd_id != self.jd_id:
-            raise ValueError("report.jd_id 必须与执行记录的 jd_id 一致")
+            raise ValueError("report.jd_id必须与执行记录的jd_id一致")
+
         if self.status == "pending" and (self.retry_count or self.errors):
-            raise ValueError("pending 状态不能包含已执行的重试或错误")
-        expected_errors = self.retry_count + (
-            1 if self.status in {"retry_pending", "failed"} else 0
-        )
+            raise ValueError("pending状态不能包含已执行的重试或错误")
+
+        expected_errors = self.retry_count + (1 if self.status in {"retry_pending", "failed"} else 0)
+
         if len(self.errors) != expected_errors:
-            raise ValueError("错误数量与状态、retry_count 不一致")
-        if [error.attempt_number for error in self.errors] != list(
-            range(1, len(self.errors) + 1)
-        ):
-            raise ValueError("错误记录的 attempt_number 必须从 1 连续递增")
+            raise ValueError("错误数量与状态、retry_count不一致")
+
+        if [error.attempt_number for error in self.errors] != list(range(1, len(self.errors) + 1)):
+            raise ValueError("错误记录的attempt_number必须从1连续递增")
+
         # 只有可重试错误才能进入下一次执行。
         if any(not error.retryable for error in self.errors[:self.retry_count]):
             raise ValueError("不可重试错误之后不能继续执行")
+
         if self.status == "retry_pending" and not self.errors[-1].retryable:
-            raise ValueError("retry_pending 的最后一次错误必须可重试")
+            raise ValueError("retry_pending的最后一次错误必须可重试")
         return self
 
 
 class RecruitmentAgentState(_StateModel):
     """一次 Agent 分析的状态快照。
 
-    jobs 以整数 jd_id 为键，多个 target_id 指向同一 JD 时只执行一次。
-    请通过下方方法变更状态；frozen 仅禁止字段重新赋值，不会冻结嵌套容器。
-    并行节点不能直接覆盖整份 jobs；并行合并策略应在 graph 层另行定义。
+    jobs以整数jd_id为键，多个target_id指向同一JD时只执行一次。
+    请通过下方方法变更状态；frozen仅禁止字段重新赋值，不会冻结嵌套容器。
+    并行节点不能直接覆盖整份jobs；并行合并策略应在graph层另行定义。
     """
 
     schema_version: Literal["recruitment_agent_state_v1"] = "recruitment_agent_state_v1"
@@ -100,10 +105,8 @@ class RecruitmentAgentState(_StateModel):
     max_retries: int = Field(default=2, ge=0)
 
     @classmethod
-    def from_input(
-        cls, agent_input: AgentAnalysisInput, *, max_retries: int = 2
-    ) -> RecruitmentAgentState:
-        """按 target_matches 的首次出现顺序初始化，不分析未被申请岗位引用的 JD。"""
+    def from_input(cls, agent_input: AgentAnalysisInput, *, max_retries: int = 3) -> RecruitmentAgentState:
+        """按target_matches的首次出现顺序初始化，不分析未被申请岗位引用的JD。"""
         snapshot = AgentAnalysisInput.model_validate_json(agent_input.model_dump_json())
         jd_ids = dict.fromkeys(target.selected_jd_id for target in snapshot.target_matches)
         return cls(
@@ -116,14 +119,14 @@ class RecruitmentAgentState(_StateModel):
     def validate_jobs(self) -> RecruitmentAgentState:
         expected_ids = {target.selected_jd_id for target in self.agent_input.target_matches}
         if set(self.jobs) != expected_ids:
-            raise ValueError("jobs 必须精确覆盖标准输入中已绑定的 JD")
+            raise ValueError("jobs必须精确覆盖标准输入中已绑定的JD")
         for jd_id, job in self.jobs.items():
             if jd_id != job.jd_id:
-                raise ValueError("jobs 的键必须与 job.jd_id 一致")
+                raise ValueError("jobs的键必须与job.jd_id一致")
             if job.retry_count > self.max_retries:
-                raise ValueError("retry_count 不能超过 max_retries")
+                raise ValueError("retry_count不能超过max_retries")
             if job.status == "retry_pending" and job.retry_count >= self.max_retries:
-                raise ValueError("重试预算耗尽后必须进入 failed")
+                raise ValueError("重试预算耗尽后必须进入failed")
             if (
                 job.status == "failed"
                 and job.last_error is not None
@@ -137,7 +140,7 @@ class RecruitmentAgentState(_StateModel):
 
     @property
     def runnable_jd_ids(self) -> list[int]:
-        """服务层可调度的 JD；running 和终态不会被重复调度。"""
+        """服务层可调度的JD；running和终态不会被重复调度。"""
         return [
             jd_id for jd_id, job in self.jobs.items()
             if job.status in {"pending", "retry_pending"}
@@ -145,7 +148,7 @@ class RecruitmentAgentState(_StateModel):
 
     @property
     def is_finished(self) -> bool:
-        """所有 JD 均到达终态，包括失败；不等于全部分析成功。"""
+        """所有JD均到达终态，包括失败；不等于全部分析成功。"""
         return all(job.status in {"succeeded", "failed"} for job in self.jobs.values())
 
     def start_job(self, jd_id: int) -> RecruitmentAgentState:
@@ -162,7 +165,7 @@ class RecruitmentAgentState(_StateModel):
     def complete_job(self, jd_id: int, report: JobAnalysis) -> RecruitmentAgentState:
         """保存通过结构、岗位绑定和证据校验的报告，保留历史错误。
 
-        校验异常直接抛给服务层，原状态保持 running；服务层可据此调用
+        校验异常直接抛给服务层，原状态保持running；服务层可据此调用
         fail_job(stage="output_validate", ...) 并决定是否重试。
         """
         self._require_running(jd_id)
@@ -170,16 +173,8 @@ class RecruitmentAgentState(_StateModel):
         self._validate_report(jd_id, checked)
         return self._replace_job(jd_id, status="succeeded", report=checked)
 
-    def fail_job(
-        self,
-        jd_id: int,
-        *,
-        stage: str,
-        error_type: str,
-        message: str,
-        retryable: bool,
-    ) -> RecruitmentAgentState:
-        """记录本次失败；存在重试预算时进入 retry_pending，否则进入 failed。"""
+    def fail_job(self,jd_id: int,*,stage: str,error_type: str,message: str,retryable: bool) -> RecruitmentAgentState:
+        """记录本次失败；存在重试预算时进入retry_pending，否则进入failed。"""
         job = self._require_running(jd_id)
         error = AgentExecutionError(
             stage=stage,
@@ -194,7 +189,7 @@ class RecruitmentAgentState(_StateModel):
     def build_output(self) -> AgentAnalysisOutput:
         """全部成功后汇总；不把部分执行成功伪装成完整的 AgentAnalysisOutput。"""
         if any(job.status != "succeeded" for job in self.jobs.values()):
-            raise ValueError("尚有未成功的 JD；可从 jobs 读取已完成报告和失败原因")
+            raise ValueError("尚有未成功的JD；可从jobs读取已完成报告和失败原因")
         output = AgentAnalysisOutput(
             analysis_scope=self.agent_input.analysis_scope,
             job_analyses=[job.report for job in self.jobs.values() if job.report is not None],
@@ -204,19 +199,19 @@ class RecruitmentAgentState(_StateModel):
 
     def _get_job(self, jd_id: int) -> JDAnalysisState:
         if type(jd_id) is not int or jd_id not in self.jobs:
-            raise ValueError(f"标准输入中不存在已绑定的 JD: {jd_id!r}")
+            raise ValueError(f"标准输入中不存在已绑定的JD: {jd_id!r}")
         return self.jobs[jd_id]
 
     def _require_running(self, jd_id: int) -> JDAnalysisState:
         job = self._get_job(jd_id)
         if job.status != "running":
-            raise ValueError(f"JD {jd_id} 处于 {job.status}，不能保存执行结果")
+            raise ValueError(f"JD{jd_id}处于{job.status}，不能保存执行结果")
         return job
 
     def _validate_report(self, jd_id: int, report: JobAnalysis) -> None:
         if report.jd_id != jd_id:
-            raise ValueError("报告必须属于当前分析的 JD")
-        # 复用输出契约的校验，只截取当前 JD 的输入视图，不修改标准输入。
+            raise ValueError("报告必须属于当前分析的JD")
+        # 复用输出契约的校验，只截取当前JD的输入视图，不修改标准输入。
         job_input = self.agent_input.model_copy(update={
             "matched_jds": [job for job in self.agent_input.matched_jds if job.jd_id == jd_id],
             "target_matches": [

@@ -9,6 +9,7 @@ class ResumeExtractor(ABC):
     async def extract(
         self,
         markdown: str,
+        force_refresh: bool = False,
     ) -> ResumeModel:
         """
         Markdown简历 -> ResumeModel
